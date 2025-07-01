@@ -95,25 +95,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         if (!BCrypt.checkpw(requestParam.getPassword(), userDO.getPassword())) {
             throw new RuntimeException("密码错误");
         }
-        Boolean hasLogin = stringRedisTemplate.hasKey("login_" + requestParam.getUsername());
-        if (hasLogin) {
+        Boolean hasLogin = stringRedisTemplate.hasKey("login:" + requestParam.getUsername());
+        if (Boolean.TRUE.equals(hasLogin)) {
             throw new ClientException("用户已登录");
         }
         /**
          * Hash
-         * Key: login_用户名
+         * Key: login:用户名
          * Value:
          *   key: token 标识
          *   value: JSON 字符串(用户信息)
          */
         String uuid = UUID.randomUUID().toString();
-        stringRedisTemplate.opsForValue().set(uuid, JSON.toJSONString(userDO), 30L, TimeUnit.DAYS);
-
         Map<String, Object> userInfoMap = new HashMap<>();
         userInfoMap.put("token", JSON.toJSONString(userDO));
 
-        stringRedisTemplate.opsForHash().put("login_" + requestParam.getUsername(), uuid, JSON.toJSONString(userDO));
-        stringRedisTemplate.expire("login_" + requestParam.getUsername(), 30L, TimeUnit.DAYS);
+        stringRedisTemplate.opsForHash().put("login:" + requestParam.getUsername(), uuid, JSON.toJSONString(userDO));
+        stringRedisTemplate.expire("login:" + requestParam.getUsername(), 30L, TimeUnit.DAYS);
         return new UserLoginRespDTO(uuid);
     }
 

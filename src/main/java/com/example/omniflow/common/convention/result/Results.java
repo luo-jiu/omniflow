@@ -28,6 +28,16 @@ public final class Results {
     }
 
     /**
+     * 构造带返回数据和信息的成功响应
+     */
+    public static <T> Result<T> success(T data, String message) {
+        return new Result<T>()
+                .setCode(Result.SUCCESS_CODE)
+                .setData(data)
+                .setMessage(message);
+    }
+
+    /**
      * 构建服务端失败响应
      */
     public static Result<Void> failure() {
