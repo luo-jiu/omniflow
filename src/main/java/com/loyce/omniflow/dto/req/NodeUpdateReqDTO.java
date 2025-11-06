@@ -8,7 +8,7 @@ public class NodeUpdateReqDTO {
     /**
      * 主键 id
      */
-    private Integer id;
+    private Long id;
 
     /**
      * 内置类型

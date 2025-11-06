@@ -28,7 +28,7 @@ public interface NodeService extends IService<NodeDO> {
      * @param libraryId
      * @return
      */
-    List<NodeRespDTO> getAllDescendants(Integer nodeId, Integer libraryId);
+    List<NodeRespDTO> getAllDescendants(Long nodeId, Long libraryId);
 
     /**
      * 查询节点的直接子节点
@@ -37,7 +37,7 @@ public interface NodeService extends IService<NodeDO> {
      * @param libraryId
      * @return
      */
-    List<NodeRespDTO> getDirectChildren(Integer nodeId, Integer libraryId);
+    List<NodeRespDTO> getDirectChildren(Long nodeId, Long libraryId);
 
     /**
      * 查询节点的祖先路径
@@ -46,7 +46,7 @@ public interface NodeService extends IService<NodeDO> {
      * @param libraryId
      * @return
      */
-    List<NodePathRespDTO> getAncestors(Integer nodeId, Integer libraryId);
+    List<NodePathRespDTO> getAncestors(Long nodeId, Long libraryId);
 
     /**
      * 查询节点的完整路径
@@ -55,28 +55,28 @@ public interface NodeService extends IService<NodeDO> {
      * @param libraryId
      * @return
      */
-    String getFullPath(Integer nodeId, Integer libraryId);
+    String getFullPath(Long nodeId, Long libraryId);
 
     /**
      * 修改节点配置信息
      *
      * @param requestParam
      */
-    void updateNode(NodeUpdateReqDTO requestParam);
+    void updateNode(Long nodeId, NodeUpdateReqDTO requestParam);
 
     /**
      * 重命名
      *
      * @param requestParam
      */
-    void rename(NodeRenameReqDTO requestParam);
+    void rename(Long nodeId, NodeRenameReqDTO requestParam);
 
     /**
      * 移动节点
      *
      * @param requestParam
      */
-    void moveNode(NodeMoveReqDTO requestParam);
+    void moveNode(Long nodeId, NodeMoveReqDTO requestParam);
 
     /**
      * 删除节点以及子节点

@@ -3,9 +3,9 @@ package com.loyce.omniflow.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.loyce.omniflow.common.biz.user.UserContext;
 import com.loyce.omniflow.common.convention.exception.ClientException;
 import com.loyce.omniflow.common.enums.RedisPrefixCodeEnum;
 import com.loyce.omniflow.common.enums.UserErrorCodeEnum;
@@ -78,10 +78,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     @Override
     public void update(UserUpdateReqDTO requestParam) {
-        // TODO 验证当前用户是否为登录用户
-        LambdaUpdateWrapper<UserDO> updateWrapper = Wrappers.lambdaUpdate(UserDO.class)
-                .eq(UserDO::getUsername, requestParam.getUsername());
-        baseMapper.update(BeanUtil.toBean(requestParam, UserDO.class), updateWrapper);
+        // todo 验证修改权限
+        String userId = UserContext.getUserId();
+
+        baseMapper.updateById(BeanUtil.toBean(requestParam, UserDO.class));
     }
 
     @Override

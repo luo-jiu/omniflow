@@ -15,7 +15,7 @@ public class NodeDO extends BaseDO {
      * ID - 自增主键
      */
     @TableId(type = IdType.AUTO)
-    private Integer id;
+    private Long id;
 
     /**
      * 节点名称
@@ -25,7 +25,7 @@ public class NodeDO extends BaseDO {
     /**
      * 父节点id
      */
-    private Integer parentId;
+    private Long parentId;
 
     /**
      * 节点类型 - 0-文件夹，1-文件
@@ -55,5 +55,5 @@ public class NodeDO extends BaseDO {
     /**
      * 所属库id
      */
-    private Integer libraryId;
+    private Long libraryId;
 }

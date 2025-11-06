@@ -18,6 +18,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/nodes")
 public class NodeController {
 
     private final NodeService nodeService;
@@ -26,7 +27,7 @@ public class NodeController {
      * 创建节点
      */
     @LibraryPermission
-    @PostMapping("/api/omniflow/v1/node/create")
+    @PostMapping()
     public Result<NodeDO> createNode(@RequestBody NodeCreateReqDTO requestParam) {
         return Results.success(nodeService.createNode(requestParam));
     }
@@ -35,8 +36,10 @@ public class NodeController {
      * 查询该节点的所有子节点(包括子文件夹和子文件)
      */
     @LibraryPermission
-    @GetMapping("/api/omniflow/v1/{nodeId}/descendants")
-    public Result<List<NodeRespDTO>> getAllDescendants(@PathVariable Integer nodeId, @RequestParam Integer libraryId) {
+    @GetMapping("/{nodeId}/descendants")
+    public Result<List<NodeRespDTO>> getAllDescendants(
+            @PathVariable Long nodeId,
+            @RequestParam Long libraryId) {
         return Results.success(nodeService.getAllDescendants(nodeId, libraryId));
     }
 
@@ -44,8 +47,10 @@ public class NodeController {
      * 查询该节点的直接子节点
      */
     @LibraryPermission
-    @GetMapping("/api/omniflow/v1/{nodeId}/children")
-    public Result<List<NodeRespDTO>> getDirectChildren(@PathVariable Integer nodeId, @RequestParam Integer libraryId) {
+    @GetMapping("/{nodeId}/children")
+    public Result<List<NodeRespDTO>> getDirectChildren(
+            @PathVariable Long nodeId,
+            @RequestParam Long libraryId) {
         return Results.success(nodeService.getDirectChildren(nodeId, libraryId));
     }
 
@@ -53,8 +58,10 @@ public class NodeController {
      * 查询该节点的祖先路径
      */
     @LibraryPermission
-    @GetMapping("/api/omniflow/v1/{nodeId}/ancestors")
-    public Result<List<NodePathRespDTO>> getAncestors(@PathVariable Integer nodeId, @RequestParam Integer libraryId) {
+    @GetMapping("/{nodeId}/ancestors")
+    public Result<List<NodePathRespDTO>> getAncestors(
+            @PathVariable Long nodeId,
+            @RequestParam Long libraryId) {
         return Results.success(nodeService.getAncestors(nodeId, libraryId));
     }
 
@@ -62,8 +69,8 @@ public class NodeController {
      * 查询该节点的完整路径
      */
     @LibraryPermission
-    @GetMapping("/api/omniflow/v1/{nodeId}/path")
-    public Result<String> getFullPath(@PathVariable Integer nodeId, @RequestParam Integer libraryId) {
+    @GetMapping("/{nodeId}/path")
+    public Result<String> getFullPath(@PathVariable Long nodeId, @RequestParam Long libraryId) {
         return Results.success(nodeService.getFullPath(nodeId, libraryId));
     }
 
@@ -71,19 +78,19 @@ public class NodeController {
      * 修改节点配置信息
      */
     @LibraryPermission
-    @PostMapping("/api/omniflow/v1/update")
-    public Result<Void> updateNode(@RequestBody NodeUpdateReqDTO requestParam) {
-        nodeService.updateNode(requestParam);
+    @PutMapping("/{nodeId}")
+    public Result<Void> updateNode(@PathVariable Long nodeId, @RequestBody NodeUpdateReqDTO requestParam) {
+        nodeService.updateNode(nodeId, requestParam);
         return Results.success();
     }
 
     /**
-     * 重命名
+     * 重命名节点
      */
     @LibraryPermission
-    @PostMapping("/api/omniflow/v1/rename")
-    public Result<Void> rename(@RequestBody NodeRenameReqDTO requestParam) {
-        nodeService.rename(requestParam);
+    @PatchMapping("/{nodeId}/rename")
+    public Result<Void> rename(@PathVariable Long nodeId, @RequestBody NodeRenameReqDTO requestParam) {
+        nodeService.rename(nodeId, requestParam);
         return Results.success();
     }
 
@@ -91,9 +98,9 @@ public class NodeController {
      * 移动节点(改变父节点)
      */
     @LibraryPermission
-    @PostMapping("/api/omniflow/v1/move")
-    public Result<Void> moveNode(@RequestBody NodeMoveReqDTO requestParam) {
-        nodeService.moveNode(requestParam);
+    @PatchMapping("/{nodeId}/move")
+    public Result<Void> moveNode(@PathVariable Long nodeId, @RequestBody NodeMoveReqDTO requestParam) {
+        nodeService.moveNode(nodeId, requestParam);
         return Results.success();
     }
 
@@ -101,7 +108,7 @@ public class NodeController {
      * 删除单个节点以及其后代
      */
     @LibraryPermission
-    @DeleteMapping("/api/omniflow/v1/{ancestorId}/library/{libraryId}")
+    @DeleteMapping("/{ancestorId}/library/{libraryId}")
     public Result<Boolean> deleteNodeAndChildren(
             @PathVariable Long ancestorId,
             @PathVariable Long libraryId) {

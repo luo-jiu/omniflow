@@ -51,7 +51,8 @@ public class LibraryServiceImpl extends ServiceImpl<LibraryMapper, LibraryDO> im
     }
 
     @Override
-    public void update(LibraryUpdateReqDTO requestParam, String userId) {
+    public void update(Long id, LibraryUpdateReqDTO requestParam, String userId) {
+        requestParam.setId(id);
         LambdaUpdateWrapper<LibraryDO> updateWrapper = Wrappers.lambdaUpdate(LibraryDO.class)
                 .eq(LibraryDO::getId, requestParam.getId())
                 .eq(LibraryDO::getUserId, userId);

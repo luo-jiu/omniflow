@@ -8,7 +8,7 @@ public class NodeRenameReqDTO {
     /**
      * 主键 id
      */
-    private Integer id;
+    private Long id;
 
     /**
      * 新名称
@@ -18,10 +18,10 @@ public class NodeRenameReqDTO {
     /**
      * 新的父节点 ID
      */
-    private Integer newParentId;
+    private Long newParentId;
 
     /**
      * 库 ID
      */
-    private Integer libraryId;
+    private Long libraryId;
 }

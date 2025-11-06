@@ -6,6 +6,11 @@ import lombok.Data;
 public class UserUpdateReqDTO {
 
     /**
+     * 用户id
+      */
+    private Long id;
+
+    /**
      * 用户名 - 用户登录名称
      */
     private String username;

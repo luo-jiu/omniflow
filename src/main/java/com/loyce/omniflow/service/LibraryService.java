@@ -30,7 +30,7 @@ public interface LibraryService extends IService<LibraryDO> {
      *
      * @param requestParam
      */
-    void update(LibraryUpdateReqDTO requestParam, String userId);
+    void update(Long id, LibraryUpdateReqDTO requestParam, String userId);
 
     /**
      * 删除仓库 (逻辑删除)

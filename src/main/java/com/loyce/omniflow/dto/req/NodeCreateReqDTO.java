@@ -17,12 +17,12 @@ public class NodeCreateReqDTO {
     /**
      * 父节点id - null表示自己为 root
      */
-    private Integer parentId;
+    private Long parentId;
 
     /**
      * 所属库id
      */
-    private Integer libraryId;
+    private Long libraryId;
 
     /**
      * 文件大小 - 仅文件需要

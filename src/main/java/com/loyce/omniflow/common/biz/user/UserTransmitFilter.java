@@ -25,9 +25,9 @@ public class UserTransmitFilter implements Filter {
     private final StringRedisTemplate stringRedisTemplate;
 
     private static final List<String> IGNORE_URI = Lists.newArrayList(
-            "/api/omniflow/v1/user",
-            "/api/omniflow/v1/user/login",
-            "/api/omniflow/v1/user/has-username"
+            "/api/v1/user/register",
+            "/api/v1/user/login",
+            "/api/v1/user/exists"
     );
 
     // TODO 未来加入本地缓存 防止多次请求redis

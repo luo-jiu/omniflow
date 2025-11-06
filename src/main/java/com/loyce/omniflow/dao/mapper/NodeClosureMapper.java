@@ -11,10 +11,10 @@ import java.util.List;
 public interface NodeClosureMapper extends BaseMapper<NodeClosureDO> {
 
     @Select("SELECT * FROM node_closure WHERE descendant = #{parentId} AND library_id = #{libraryId}")
-    List<NodeClosureDO> findAncestorsByParentId(Integer parentId, Integer libraryId);
+    List<NodeClosureDO> findAncestorsByParentId(Long parentId, Long libraryId);
 
     @Select("SELECT COUNT(*) FROM node_closure WHERE ancestor = #{nodeId} AND descendant = #{targetId} AND library_id = #{libraryId}")
-    Integer existsDescendant(Integer nodeId, Integer targetId, Integer libraryId);
+    Integer existsDescendant(Long nodeId, Long targetId, Long libraryId);
 
     @Delete("DELETE FROM node_closure " +
             "WHERE (descendant, ancestor) IN (" +
@@ -26,7 +26,7 @@ public interface NodeClosureMapper extends BaseMapper<NodeClosureDO> {
             "       AND nc2.descendant = #{nodeId} AND nc2.ancestor != #{nodeId} AND nc2.library_id = #{libraryId}" +
             "   ) AS tmp" +
             ")")
-    void deleteOldRelations(Integer nodeId, Integer libraryId);
+    void deleteOldRelations(Long nodeId, Long libraryId);
 
     @Insert("INSERT INTO node_closure (ancestor, descendant, depth, library_id) " +
             "SELECT a.ancestor, d.descendant, a.depth + d.depth + 1, #{libraryId} " +
@@ -34,7 +34,7 @@ public interface NodeClosureMapper extends BaseMapper<NodeClosureDO> {
             "CROSS JOIN node_closure d " +
             "WHERE a.descendant = #{newParentId} AND a.library_id = #{libraryId} " +
             "AND d.ancestor = #{nodeId} AND d.library_id = #{libraryId}")
-    void insertNewRelations(Integer nodeId, Integer newParentId, Integer libraryId);
+    void insertNewRelations(Long nodeId, Long newParentId, Long libraryId);
 
     @Delete("DELETE FROM node_closure " +
             "WHERE descendant IN (" +

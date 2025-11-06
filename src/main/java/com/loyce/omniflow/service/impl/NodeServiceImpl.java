@@ -37,7 +37,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         // 2. 构建 node节点并插入 node表
         NodeDO node = getNodeDO(req);
         baseMapper.insert(node);  // 插入后 node.id会自动设置为新值
-        Integer newNodeId = node.getId();
+        Long newNodeId = node.getId();
 
         // 3. 插入 node_closure表
         // 3.1 先插入自身节点信息
@@ -68,7 +68,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     private static NodeDO getNodeDO(NodeCreateReqDTO requestParam) {
         NodeDO node = new NodeDO();
         node.setName(requestParam.getName());
-        node.setParentId(requestParam.getParentId());
+        node.setParentId(requestParam.getParentId() == null? 0: requestParam.getParentId());
         node.setType(requestParam.getType());
         node.setBuiltInType("DEF");  // 默认类型
         if (requestParam.getType() != null && requestParam.getType() == 1) {  // 不为空且为file, 需要设置其他参数
@@ -80,7 +80,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         return node;
     }
 
-    public List<NodeRespDTO> getAllDescendants(Integer nodeId, Integer libraryId) {
+    public List<NodeRespDTO> getAllDescendants(Long nodeId, Long libraryId) {
         List<NodeRespDTO> rawList = baseMapper.findAllDescendants(nodeId, libraryId);
         for (NodeRespDTO dto : rawList) {
             dto.setType(mapType(dto.getType()));
@@ -88,7 +88,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         return rawList;
     }
 
-    public List<NodeRespDTO> getDirectChildren(Integer nodeId, Integer libraryId) {
+    public List<NodeRespDTO> getDirectChildren(Long nodeId, Long libraryId) {
         List<NodeRespDTO> rawList = baseMapper.findDirectChildren(nodeId, libraryId);
         for (NodeRespDTO dto : rawList) {
             dto.setType(mapType(dto.getType()));
@@ -96,11 +96,11 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         return rawList;
     }
 
-    public List<NodePathRespDTO> getAncestors(Integer nodeId, Integer libraryId) {
+    public List<NodePathRespDTO> getAncestors(Long nodeId, Long libraryId) {
         return baseMapper.findAncestors(nodeId, libraryId);
     }
 
-    public String getFullPath(Integer nodeId, Integer libraryId) {
+    public String getFullPath(Long nodeId, Long libraryId) {
         List<NodePathRespDTO> pathNodes = baseMapper.findFullPath(nodeId, libraryId);
         if (pathNodes.isEmpty()) {
             throw new ClientException("Node not found or does not belong to the specified library.");
@@ -115,12 +115,14 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     }
 
     @Override
-    public void updateNode(NodeUpdateReqDTO requestParam) {
+    public void updateNode(Long nodeId, NodeUpdateReqDTO requestParam) {
+        requestParam.setId(nodeId);
         baseMapper.updateNode(requestParam);
     }
 
     @Override
-    public void rename(NodeRenameReqDTO req) {
+    public void rename(Long nodeId, NodeRenameReqDTO req) {
+        req.setId(nodeId);
         // 重命名时需判断是否有相同文件名
         checker.checkDuplicateName(req.getName(), req.getNewParentId(), req.getLibraryId(), req.getId());
         baseMapper.rename(req);
@@ -128,10 +130,9 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void moveNode(NodeMoveReqDTO req) {
-        Integer nodeId = req.getNodeId();
-        Integer newParentId = req.getNewParentId();
-        Integer libraryId = req.getLibraryId();
+    public void moveNode(Long nodeId, NodeMoveReqDTO req) {
+        Long newParentId = req.getNewParentId();
+        Long libraryId = req.getLibraryId();
         // 判断移动目标下是否有重名文件
         checker.checkDuplicateName(req.getName(), newParentId, libraryId, nodeId);
 
@@ -190,7 +191,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     }
 
     // 辅助方法：检查 targetId 是否是 nodeId 的后代
-    private boolean isDescendant(Integer nodeId, Integer targetId, Integer libraryId) {
+    private boolean isDescendant(Long nodeId, Long targetId, Long libraryId) {
         return nodeClosureMapper.existsDescendant(nodeId, targetId, libraryId) > 0;
     }
 

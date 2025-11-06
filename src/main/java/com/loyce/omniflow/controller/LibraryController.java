@@ -14,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/libraries")
 public class LibraryController {
 
     private final LibraryService libraryService;
@@ -21,7 +22,7 @@ public class LibraryController {
     /**
      * 分页查询仓库（基于游标）
      */
-    @GetMapping("/api/omniflow/v1/scroll/cursor")
+    @GetMapping("/scroll")
     public Result<List<LibraryDO>> scrollLibrary(
             @RequestParam(required = false) Long lastId,
             @RequestParam(defaultValue = "10") int size) {
@@ -31,7 +32,7 @@ public class LibraryController {
     /**
      * 新建仓库
      */
-    @PostMapping("/api/omniflow/v1/create")
+    @PostMapping()
     public Result<Void> create(@RequestBody LibraryCreateReqDTO requestParam) {
         libraryService.create(requestParam);
         return Results.success();
@@ -40,16 +41,16 @@ public class LibraryController {
     /**
      * 修改仓库
      */
-    @PutMapping("/api/omniflow/v1/update")
-    public Result<Void> update(@RequestBody LibraryUpdateReqDTO requestParam) {
-        libraryService.update(requestParam, UserContext.getUserId());
+    @PutMapping("/{id}")
+    public Result<Void> update(@PathVariable Long id, @RequestBody LibraryUpdateReqDTO requestParam) {
+        libraryService.update(id, requestParam, UserContext.getUserId());
         return Results.success();
     }
 
     /**
      * 删除仓库
      */
-    @DeleteMapping("/api/omniflow/v1/delete/{id}")
+    @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         libraryService.delete(id, UserContext.getUserId());
         return Results.success();
