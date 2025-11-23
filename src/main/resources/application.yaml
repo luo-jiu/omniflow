@@ -1,12 +1,17 @@
 server:
   port: 8848
+  tomcat:
+    max-swallow-size: 100MB
+    max-http-form-post-size: 200MB
 
 spring:
   servlet:
     multipart:
-      enabled: true
       max-file-size: 100MB
       max-request-size: 200MB
+      file-size-threshold: 2KB
+      resolve-lazily: false
+
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -26,3 +31,13 @@ minio:
   accessKey: admin
   secretKey: admin123
   defaultBucket: my-bucket
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: deleted_at
+      logic-delete-value: NOW()
+      logic-not-delete-value: NULL
+  # 开启日志
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

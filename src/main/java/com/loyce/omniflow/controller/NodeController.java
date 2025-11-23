@@ -95,6 +95,16 @@ public class NodeController {
     }
 
     /**
+     * 移动节点(改变顺序)
+     */
+    @LibraryPermission
+    @PatchMapping("")
+    public Result<Void> reorderNode() {
+        nodeService.reorderNode();
+        return Results.success();
+    }
+
+    /**
      * 移动节点(改变父节点)
      */
     @LibraryPermission

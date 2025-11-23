@@ -67,4 +67,13 @@ public final class Results {
                 .setCode(errorCode)
                 .setMessage(errorMessage);
     }
+
+    /**
+     * 构建通用失败响应（带自定义数据类型）
+     */
+    public static <T> Result<T> failure(String message) {
+        return new Result<T>()
+                .setCode(BaseErrorCode.SERVICE_ERROR.code())
+                .setMessage(message);
+    }
 }

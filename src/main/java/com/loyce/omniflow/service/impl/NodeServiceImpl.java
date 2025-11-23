@@ -36,6 +36,11 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
         // 2. 构建 node节点并插入 node表
         NodeDO node = getNodeDO(req);
+        Integer sortOrder = baseMapper.getSortByLibraryIdAndParentId(req.getParentId(), req.getLibraryId());
+        if (sortOrder == null) {
+            sortOrder = 0;
+        }
+        node.setSortOrder(sortOrder + 15);
         baseMapper.insert(node);  // 插入后 node.id会自动设置为新值
         Long newNodeId = node.getId();
 
@@ -129,10 +134,16 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     }
 
     @Override
+    public void reorderNode() {
+
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void moveNode(Long nodeId, NodeMoveReqDTO req) {
         Long newParentId = req.getNewParentId();
         Long libraryId = req.getLibraryId();
+        Long beforeNodeId = req.getBeforeNodeId();
         // 判断移动目标下是否有重名文件
         checker.checkDuplicateName(req.getName(), newParentId, libraryId, nodeId);
 
@@ -155,13 +166,29 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
             throw new ClientException("Cannot move node to its descendant");
         }
 
-        // 4. 更新 nodes 表中的 parent_id
-        baseMapper.updateParentId(nodeId, newParentId, libraryId);
+        // 4. 计算新的sort_order
+        Integer newOrder;
+        if (beforeNodeId!= null) {
+            NodeDO beforeNode = baseMapper.selectByIdAndLibraryId(beforeNodeId, libraryId);
+            if (beforeNode == null) {
+                throw new ClientException("Before-node not found: " + beforeNodeId);
+            }
+            // 在 beforeNode前插入，所有 >= beforeNode.sort_order的节点整体后移
+            baseMapper.incrementSortOrderAfter(newParentId, libraryId, beforeNode.getSortOrder());
+            newOrder = beforeNode.getSortOrder();
+        } else {
+            // 没指定目标，放到最后
+            newOrder = baseMapper.getSortByLibraryIdAndParentId(newParentId, libraryId) + 15;
+        }
 
-        // 5. 删除旧关系
+        // 5. 更新 nodes 表中的 parent_id
+        // baseMapper.updateParentAndSort(nodeId, targetParentId, newOrder, libraryId);
+        baseMapper.updateParentId(nodeId, newParentId, newOrder, libraryId);
+
+        // 6. 删除旧关系
         nodeClosureMapper.deleteOldRelations(nodeId, libraryId);
 
-        // 6. 插入新关系
+        // 7. 插入新关系
         nodeClosureMapper.insertNewRelations(nodeId, newParentId, libraryId);
     }
 

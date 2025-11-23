@@ -20,7 +20,7 @@ public class NodeNameConflictChecker {
      * @param excludeId 要排除的节点 ID（如重命名或移动时排除自己），可为 null
      */
     public void checkDuplicateName(String name, Long parentId, Long libraryId, Long excludeId) {
-        int count = nodeMapper.countByNameAndParent(name, parentId, libraryId, excludeId);
+        Integer count = nodeMapper.countByNameAndParent(name, parentId, libraryId, excludeId);
         if (count > 0) {
             throw new ClientException("同级目录下已存在同名节点：" + name);
         }

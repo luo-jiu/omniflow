@@ -53,6 +53,11 @@ public class NodeDO extends BaseDO {
     private Integer archiveMode;
 
     /**
+     * 同级节点排序
+     */
+    private Integer sortOrder;
+
+    /**
      * 所属库id
      */
     private Long libraryId;

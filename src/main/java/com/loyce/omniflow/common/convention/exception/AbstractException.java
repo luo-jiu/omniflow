@@ -10,8 +10,8 @@ import java.util.Optional;
 /**
  * 抽象项目中三类异常体系，客户端异常、服务端异常以及远程服务调用异常
  *
- * @see com.example.omniflow.common.convention.exception.ClientException
- * @see com.example.omniflow.common.convention.exception.ServiceException
+ * @see com.loyce.omniflow.common.convention.exception.ClientException
+ * @see com.loyce.omniflow.common.convention.exception.ServiceException
  * @see RemoteException
  */
 @Getter

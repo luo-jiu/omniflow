@@ -21,6 +21,11 @@ public class NodeMoveReqDTO {
     private Long newParentId;
 
     /**
+     * 插入到哪个节点前（可选）
+     */
+    private Long beforeNodeId;
+
+    /**
      * 库 ID
      */
     private Long libraryId;

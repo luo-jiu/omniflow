@@ -2,9 +2,10 @@ package com.loyce.omniflow.common.database;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.Data;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 /**
  * 数据库持久层对象基础属性
@@ -13,14 +14,20 @@ import java.util.Date;
 public class BaseDO {
 
     /**
-     * 创建时间 - 记录创建时间
+     * 删除时间
      */
-    @TableField(fill = FieldFill.INSERT)
-    private Date createdAt;
+    @TableLogic(value = "NULL", delval = "NOW()")
+    private LocalDateTime deletedAt;
 
     /**
-     * 修改时间 - 记录的最后修改时间
+     * 创建时间
+     */
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createdAt;
+
+    /**
+     * 修改时间
      */
     @TableField(fill = FieldFill.INSERT_UPDATE)
-    private Date updatedAt;
+    private LocalDateTime updatedAt;
 }

@@ -49,8 +49,9 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
     @Select("SELECT * FROM nodes WHERE id = #{id} AND library_id = #{libraryId}")
     NodeDO selectByIdAndLibraryId(Long id, Long libraryId);
 
-    @Update("UPDATE nodes SET parent_id = #{newParentId} WHERE id = #{nodeId} AND library_id = #{libraryId}")
-    void updateParentId(Long nodeId, Long newParentId, Long libraryId);
+    @Update("UPDATE nodes SET parent_id = #{newParentId}, sort_order = #{sortOrder} " +
+            "WHERE id = #{nodeId} AND library_id = #{libraryId}")
+    void updateParentId(Long nodeId, Long newParentId, Integer newOrder, Long libraryId);
 
     @Update("UPDATE nodes " +
             "SET built_in_type = #{requestParam.builtInType}, archive_mode = #{requestParam.archiveMode} " +
@@ -67,10 +68,22 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "AND id != #{excludeId}",
             "</if>",
             "</script>"})
-    int countByNameAndParent(String name, Long parentId, Long libraryId, Long excludeId);
+    Integer countByNameAndParent(String name, Long parentId, Long libraryId, Long excludeId);
 
     @Update("UPDATE nodes " +
             "SET name = #{requestParam.name} " +
             "WHERE id = #{requestParam.id}")
     void rename(NodeRenameReqDTO requestParam);
+
+    @Select("SELECT sort_order FROM nodes " +
+            "WHERE parent_id = #{parentId} " +
+            "AND library_id = #{libraryId} " +
+            "ORDER BY sort_order DESC LIMIT 1")
+    Integer getSortByLibraryIdAndParentId(Long parentId, Long libraryId);
+
+    @Update("UPDATE nodes SET sort_order = sort_order + 1 " +
+            "WHERE parent_id = #{parentId} " +
+            "AND library_id = #{libraryId} " +
+            "AND sort_order >= #{sortOrder}")
+    void incrementSortOrderAfter(Long parentId, Long libraryId, Integer sortOrder);
 }

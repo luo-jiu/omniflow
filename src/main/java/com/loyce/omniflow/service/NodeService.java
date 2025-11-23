@@ -72,7 +72,12 @@ public interface NodeService extends IService<NodeDO> {
     void rename(Long nodeId, NodeRenameReqDTO requestParam);
 
     /**
-     * 移动节点
+     * 移动节点(改变顺序)
+     */
+    void reorderNode();
+
+    /**
+     * 移动节点(改变父节点)
      *
      * @param requestParam
      */

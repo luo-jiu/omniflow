@@ -25,9 +25,12 @@ public class UserTransmitFilter implements Filter {
     private final StringRedisTemplate stringRedisTemplate;
 
     private static final List<String> IGNORE_URI = Lists.newArrayList(
-            "/api/v1/user/register",
-            "/api/v1/user/login",
-            "/api/v1/user/exists"
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/exists",
+            "/api/v1/files/upload",
+            "/api/v1/files/link",
+            "/api/v1/directory/upload"
     );
 
     // TODO 未来加入本地缓存 防止多次请求redis

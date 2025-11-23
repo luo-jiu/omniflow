@@ -11,6 +11,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @TableName("library")
 public class LibraryDO extends BaseDO {
+
     /**
      * ID - 自增主键
      */
@@ -26,10 +27,5 @@ public class LibraryDO extends BaseDO {
      * 库名
      */
     private String name;
-
-    /**
-     * 库状态 - 0=正常 1=删除
-     */
-    private Integer delFlag;
 
 }

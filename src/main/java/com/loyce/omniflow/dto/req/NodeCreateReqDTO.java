@@ -1,8 +1,10 @@
 package com.loyce.omniflow.dto.req;
 
+import lombok.Builder;
 import lombok.Data;
 
 @Data
+@Builder
 public class NodeCreateReqDTO {
     /**
      * 节点名称

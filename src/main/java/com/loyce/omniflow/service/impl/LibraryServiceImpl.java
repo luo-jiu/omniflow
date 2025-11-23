@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.loyce.omniflow.common.biz.user.UserContext;
 import com.loyce.omniflow.common.convention.exception.ClientException;
 import com.loyce.omniflow.common.convention.result.Result;
 import com.loyce.omniflow.common.convention.result.Results;
@@ -17,6 +18,7 @@ import com.loyce.omniflow.service.LibraryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -31,7 +33,7 @@ public class LibraryServiceImpl extends ServiceImpl<LibraryMapper, LibraryDO> im
                 queryWrapper.gt(LibraryDO::getId, lastId);
             }
             queryWrapper.eq(LibraryDO::getUserId, userId)
-                    .eq(LibraryDO::getDelFlag, 0);
+                    .isNull(LibraryDO::getDeletedAt);
             queryWrapper.orderByAsc(LibraryDO::getId);  // 按 ID 升序排序
             queryWrapper.last("LIMIT " + size);  // 限制返回的数据量
 
@@ -43,6 +45,7 @@ public class LibraryServiceImpl extends ServiceImpl<LibraryMapper, LibraryDO> im
 
     @Override
     public void create(LibraryCreateReqDTO requestParam) {
+        requestParam.setUserId(Long.valueOf(UserContext.getUserId()));
         int inserted = baseMapper.insert(BeanUtil.toBean(requestParam, LibraryDO.class));
         if (inserted < 1) {
             // 新增失败
@@ -55,7 +58,8 @@ public class LibraryServiceImpl extends ServiceImpl<LibraryMapper, LibraryDO> im
         requestParam.setId(id);
         LambdaUpdateWrapper<LibraryDO> updateWrapper = Wrappers.lambdaUpdate(LibraryDO.class)
                 .eq(LibraryDO::getId, requestParam.getId())
-                .eq(LibraryDO::getUserId, userId);
+                .eq(LibraryDO::getUserId, userId)
+                .isNull(LibraryDO::getDeletedAt);
         baseMapper.update(BeanUtil.toBean(requestParam, LibraryDO.class), updateWrapper);
     }
 
@@ -64,7 +68,7 @@ public class LibraryServiceImpl extends ServiceImpl<LibraryMapper, LibraryDO> im
         LambdaUpdateWrapper<LibraryDO> updateWrapper = Wrappers.lambdaUpdate(LibraryDO.class)
                 .eq(LibraryDO::getId, id)
                 .eq(LibraryDO::getUserId, userId)
-                .eq(LibraryDO::getDelFlag, 1);
+                .eq(LibraryDO::getDeletedAt, LocalDateTime.now());
         baseMapper.update(updateWrapper);
     }
 
