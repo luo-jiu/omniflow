@@ -86,6 +86,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     @Override
     public UserLoginRespDTO login(UserLoginReqDTO requestParam) {
+        String loginKey = RedisPrefixCodeEnum.USER_LOGIN_CODING + requestParam.getUsername();
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
                 .eq(UserDO::getUsername, requestParam.getUsername())
                 .eq(UserDO::getStatus, 1);
@@ -96,8 +97,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         if (!BCrypt.checkpw(requestParam.getPassword(), userDO.getPassword())) {
             throw new RuntimeException("密码错误");
         }
-        Boolean hasLogin = stringRedisTemplate.hasKey("login:" + requestParam.getUsername());
+        Boolean hasLogin = stringRedisTemplate.hasKey(loginKey);
         if (Boolean.TRUE.equals(hasLogin)) {
+            // todo 下面的代码仅仅为了调试，不要提交
+            Map<Object, Object> entries = stringRedisTemplate.opsForHash().entries(loginKey);
+            if (!entries.isEmpty()) {
+                String existToken = entries.keySet().iterator().next().toString();
+                return new UserLoginRespDTO(existToken);
+            }
             throw new ClientException("用户已登录");
         }
         /**
@@ -111,7 +118,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         Map<String, Object> userInfoMap = new HashMap<>();
         userInfoMap.put("token", JSON.toJSONString(userDO));
 
-        stringRedisTemplate.opsForHash().put(RedisPrefixCodeEnum.USER_LOGIN_CODING + requestParam.getUsername(), uuid, JSON.toJSONString(userDO));
+        stringRedisTemplate.opsForHash().put(loginKey, uuid, JSON.toJSONString(userDO));
         stringRedisTemplate.expire(RedisPrefixCodeEnum.USER_LOGIN_CODING + requestParam.getUsername(), 30L, TimeUnit.DAYS);
         return new UserLoginRespDTO(uuid);
     }

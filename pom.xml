@@ -25,6 +25,7 @@
         <jbcrypt.version>0.4</jbcrypt.version>
         <fastjson2.version>2.0.36</fastjson2.version>
         <minio.version>8.5.17</minio.version>
+        <tika.version>2.9.0</tika.version>
     </properties>
 
     <dependencies>
@@ -115,6 +116,13 @@
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
             <version>${minio.version}</version>
+        </dependency>
+
+        <!-- tika -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
         </dependency>
 
     </dependencies>

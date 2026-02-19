@@ -17,14 +17,32 @@ import java.util.List;
 public interface NodeMapper extends BaseMapper<NodeDO> {
 
     // 查询节点的所有子节点（包括子文件夹和文件）
-    @Select("SELECT n.id, n.name, n.parent_id AS parentId, n.type, n.library_id AS libraryId, n.created_at AS createdAt " +
+    @Select("SELECT  " +
+            "n.id," +
+            "n.name," +
+            "n.parent_id AS parentId," +
+            "n.type," +
+            "n.library_id AS libraryId," +
+            "n.ext," +
+            "n.mime_type AS mimeType," +
+            "n.file_size AS fileSize," +
+            "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
             "WHERE nc.ancestor = #{nodeId} AND nc.library_id = #{libraryId}")
     List<NodeRespDTO> findAllDescendants(Long nodeId, Long libraryId);
 
     // 查询节点的直接子节点（depth=1）
-    @Select("SELECT n.id, n.name, n.parent_id AS parentId, n.type, n.library_id AS libraryId, n.created_at AS createdAt " +
+    @Select("SELECT  " +
+            "n.id," +
+            "n.name," +
+            "n.parent_id AS parentId," +
+            "n.type," +
+            "n.library_id AS libraryId," +
+            "n.ext," +
+            "n.mime_type AS mimeType," +
+            "n.file_size AS fileSize," +
+            "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
             "WHERE nc.ancestor = #{nodeId} AND nc.depth = 1 AND nc.library_id = #{libraryId}")
@@ -64,6 +82,7 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "WHERE name = #{name}",
             "AND parent_id = #{parentId}",
             "AND library_id = #{libraryId}",
+            "AND deleted_at IS NULL",
             "<if test='excludeId != null'>",
             "AND id != #{excludeId}",
             "</if>",
@@ -71,8 +90,8 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
     Integer countByNameAndParent(String name, Long parentId, Long libraryId, Long excludeId);
 
     @Update("UPDATE nodes " +
-            "SET name = #{requestParam.name} " +
-            "WHERE id = #{requestParam.id}")
+            "SET name = #{name} " +
+            "WHERE id = #{id}")
     void rename(NodeRenameReqDTO requestParam);
 
     @Select("SELECT sort_order FROM nodes " +
@@ -86,4 +105,16 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "AND library_id = #{libraryId} " +
             "AND sort_order >= #{sortOrder}")
     void incrementSortOrderAfter(Long parentId, Long libraryId, Integer sortOrder);
+
+    // 批量查询节点信息（用于删除时获取文件路径）
+    @Select({
+            "<script>",
+            "SELECT * FROM nodes",
+            "WHERE id IN",
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>",
+            "#{id}",
+            "</foreach>",
+            "AND library_id = #{libraryId}",
+            "</script>"})
+    List<NodeDO> selectByIdsAndLibraryId(List<Long> ids, Long libraryId);
 }

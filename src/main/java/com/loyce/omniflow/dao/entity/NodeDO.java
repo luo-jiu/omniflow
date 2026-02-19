@@ -23,19 +23,14 @@ public class NodeDO extends BaseDO {
     private String name;
 
     /**
-     * 父节点id
+     * 文件扩展名（仅文件）
      */
-    private Long parentId;
+    private String ext;
 
     /**
-     * 节点类型 - 0-文件夹，1-文件
+     * MIME类型
      */
-    private Integer type;
-
-    /**
-     * 内置类型
-     */
-    private String builtInType;
+    private String mimeType;
 
     /**
      * 文件大小 - 仅文件需要
@@ -43,9 +38,19 @@ public class NodeDO extends BaseDO {
     private Long fileSize;
 
     /**
-     * 文件类型
+     * 对象存储 Key
      */
-    private String mineType;
+    private String storageKey;
+
+    /**
+     * 内置类型
+     */
+    private String builtInType;
+
+    /**
+     * 节点类型 - 0-文件夹，1-文件
+     */
+    private Integer type;
 
     /**
      * 是否开启归档模式（0：否，1：是）默认0
@@ -56,6 +61,11 @@ public class NodeDO extends BaseDO {
      * 同级节点排序
      */
     private Integer sortOrder;
+
+    /**
+     * 父节点id
+     */
+    private Long parentId;
 
     /**
      * 所属库id

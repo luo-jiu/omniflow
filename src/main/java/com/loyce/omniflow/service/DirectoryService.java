@@ -12,4 +12,12 @@ public interface DirectoryService {
      * @return
      */
     NodeRespDTO uploadAndCreateNode(MultipartFile file, Long parentId, Long libraryId);
+
+    /**
+     * 获取文件的 MinIO 临时访问链接
+     * @param nodeId
+     * @param expiryMinutes
+     * @return
+     */
+    String getPresignedUrl(Long nodeId, Long libraryId, Integer expiryMinutes);
 }

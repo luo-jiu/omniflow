@@ -49,6 +49,14 @@ public interface NodeService extends IService<NodeDO> {
     List<NodePathRespDTO> getAncestors(Long nodeId, Long libraryId);
 
     /**
+     * 获取节点的对象存储key
+     *
+     * @param nodeId
+     * @return
+     */
+    String getStorageKey(Long nodeId);
+
+    /**
      * 查询节点的完整路径
      *
      * @param nodeId

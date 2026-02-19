@@ -15,13 +15,13 @@ public class NodeRenameReqDTO {
      */
     private String name;
 
-    /**
-     * 新的父节点 ID
-     */
-    private Long newParentId;
-
-    /**
-     * 库 ID
-     */
-    private Long libraryId;
+//    /**
+//     * 新的父节点 ID
+//     */
+//    private Long newParentId;
+//
+//    /**
+//     * 库 ID
+//     */
+//    private Long libraryId;
 }

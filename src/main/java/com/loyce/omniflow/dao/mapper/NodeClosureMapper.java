@@ -36,13 +36,31 @@ public interface NodeClosureMapper extends BaseMapper<NodeClosureDO> {
             "AND d.ancestor = #{nodeId} AND d.library_id = #{libraryId}")
     void insertNewRelations(Long nodeId, Long newParentId, Long libraryId);
 
-    @Delete("DELETE FROM node_closure " +
-            "WHERE descendant IN (" +
-            "   SELECT * FROM (" +
-            "       SELECT descendant FROM node_closure " +
-            "       WHERE ancestor = #{ancestorId} AND library_id = #{libraryId}" +
-            "   ) AS tmp" +
-            ") AND library_id = #{libraryId}")
+    /**
+     * 删除节点及其所有后代的闭包关系
+     * 需要删除：
+     * 1. 所有descendant在列表中的记录（这些节点作为后代）
+     * 2. 所有ancestor在列表中的记录（这些节点作为祖先）
+     */
+    @Delete({
+            "<script>",
+            "DELETE FROM node_closure",
+            "WHERE library_id = #{libraryId}",
+            "AND (",
+            "   descendant IN (",
+            "       SELECT * FROM (",
+            "           SELECT descendant FROM node_closure",
+            "           WHERE ancestor = #{ancestorId} AND library_id = #{libraryId}",
+            "       ) AS tmp1",
+            "   )",
+            "   OR ancestor IN (",
+            "       SELECT * FROM (",
+            "           SELECT descendant FROM node_closure",
+            "           WHERE ancestor = #{ancestorId} AND library_id = #{libraryId}",
+            "       ) AS tmp2",
+            "   )",
+            ")",
+            "</script>"})
     int deleteClosuresByAncestorAndLibrary(Long ancestorId, Long libraryId);
 
     @Select("SELECT descendant FROM node_closure WHERE ancestor = #{ancestorId} AND library_id = #{libraryId}")

@@ -13,12 +13,15 @@ import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
 import com.loyce.omniflow.dto.resp.NodeRespDTO;
+import com.loyce.omniflow.event.NodeDeleteEvent;
 import com.loyce.omniflow.service.NodeService;
 import com.loyce.omniflow.service.helper.NodeNameConflictChecker;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,6 +30,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     private final NodeClosureMapper nodeClosureMapper;
     private final NodeNameConflictChecker checker;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -35,7 +39,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         checker.checkDuplicateName(req.getName(), req.getParentId(), req.getLibraryId(), null);
 
         // 2. 构建 node节点并插入 node表
-        NodeDO node = getNodeDO(req);
+        NodeDO node = buildNodeDO(req);
         Integer sortOrder = baseMapper.getSortByLibraryIdAndParentId(req.getParentId(), req.getLibraryId());
         if (sortOrder == null) {
             sortOrder = 0;
@@ -70,19 +74,25 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         return node;
     }
 
-    private static NodeDO getNodeDO(NodeCreateReqDTO requestParam) {
+    private static NodeDO buildNodeDO(NodeCreateReqDTO req) {
         NodeDO node = new NodeDO();
-        node.setName(requestParam.getName());
-        node.setParentId(requestParam.getParentId() == null? 0: requestParam.getParentId());
-        node.setType(requestParam.getType());
-        node.setBuiltInType("DEF");  // 默认类型
-        if (requestParam.getType() != null && requestParam.getType() == 1) {  // 不为空且为file, 需要设置其他参数
-            node.setFileSize(requestParam.getFileSize());
-            node.setMineType(requestParam.getMineType());
+        node.setName(req.getName());
+        node.setParentId(req.getParentId() != null ? req.getParentId() : 0L);
+        node.setType(req.getType());
+        node.setLibraryId(req.getLibraryId());
+        node.setBuiltInType("DEF");
+        node.setArchiveMode(0);
+        if (isFile(req.getType())) {
+            node.setFileSize(req.getFileSize());
+            node.setMimeType(req.getMimeType());
+            node.setExt(req.getExt());
+            node.setStorageKey(req.getStorageKey());
         }
-        node.setArchiveMode(0);  // 归档模式 0=关闭 1=开启
-        node.setLibraryId(requestParam.getLibraryId());
         return node;
+    }
+
+    private static boolean isFile(Integer type) {
+        return type != null && type == 1;
     }
 
     public List<NodeRespDTO> getAllDescendants(Long nodeId, Long libraryId) {
@@ -103,6 +113,14 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     public List<NodePathRespDTO> getAncestors(Long nodeId, Long libraryId) {
         return baseMapper.findAncestors(nodeId, libraryId);
+    }
+
+    public String getStorageKey(Long nodeId) {
+        NodeDO node = baseMapper.selectById(nodeId);
+        if (node == null) {
+            throw new ClientException("Node not found or does not belong to the specified library.");
+        }
+        return node.getStorageKey();
     }
 
     public String getFullPath(Long nodeId, Long libraryId) {
@@ -127,9 +145,9 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     @Override
     public void rename(Long nodeId, NodeRenameReqDTO req) {
-        req.setId(nodeId);
+        NodeDO nodeDO = baseMapper.selectById(nodeId);
         // 重命名时需判断是否有相同文件名
-        checker.checkDuplicateName(req.getName(), req.getNewParentId(), req.getLibraryId(), req.getId());
+        checker.checkDuplicateName(req.getName(), nodeDO.getParentId(), nodeDO.getLibraryId(), nodeDO.getId());
         baseMapper.rename(req);
     }
 
@@ -196,21 +214,42 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteNodeAndChildren(Long ancestorId, Long libraryId) {
         try {
-            // 1. 先获取需要删除的 descendant ID 列表
+            // 1. 先获取需要删除的 descendant ID 列表（包括自身）
             List<Long> descendantIds = nodeClosureMapper.selectDescendantIdsByAncestorAndLibrary(ancestorId, libraryId);
             if (CollectionUtils.isEmpty(descendantIds)) {
                 return true;
             }
 
-            // 2. 删除 node_closure 表中的相关记录
-            nodeClosureMapper.deleteClosuresByAncestorAndLibrary(ancestorId, libraryId);
-
-            // 3. 删除 nodes 表中的相关记录
-            // 由于已经有了 descendantIds 列表，可以直接删除，而不需要再次查询 node_closure
-            if (!descendantIds.isEmpty()) {
-                baseMapper.deleteBatchIds(descendantIds); // MyBatis-Plus 提供的批量删除方法
+            // 2. 查询所有要删除的节点信息，用于构建文件路径
+            List<NodeDO> nodesToDelete = baseMapper.selectByIdsAndLibraryId(descendantIds, libraryId);
+            
+            // 3. 筛选出文件节点（type=1），并构建文件路径列表
+            List<String> filePaths = new ArrayList<>();
+            for (NodeDO node : nodesToDelete) {
+                // 只处理文件节点（type=1），文件夹不需要删除MinIO文件
+                if (node.getType() != null && node.getType() == 1) {
+                    try {
+                        String fullPath = getStorageKey(node.getId());
+                        filePaths.add(fullPath);
+                    } catch (Exception e) {
+                        // 如果获取路径失败，记录日志但不影响删除流程
+                        // 可能节点已经被删除或路径不存在，继续处理其他节点
+                    }
+                }
             }
 
+            // 4. 删除 node_closure 表中的相关记录
+            nodeClosureMapper.deleteClosuresByAncestorAndLibrary(ancestorId, libraryId);
+
+            // 5. 删除 nodes 表中的相关记录（使用逻辑删除）
+            if (!descendantIds.isEmpty()) {
+                this.removeByIds(descendantIds); // MyBatis-Plus 提供的批量删除方法（逻辑删除）
+            }
+
+            // 6. 发布删除事件，在事务提交后删除MinIO文件
+            if (!filePaths.isEmpty()) {
+                eventPublisher.publishEvent(new NodeDeleteEvent(this, filePaths, libraryId));
+            }
             return true;
         } catch (Exception e) {
             throw new ClientException("删除节点及其子节点失败: " + e.getMessage());

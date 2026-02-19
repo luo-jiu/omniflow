@@ -7,29 +7,33 @@ import lombok.Data;
  */
 @Data
 public class NodeRespDTO {
-    /**
-     * ID
-     */
+
     private Integer id;
 
-    /**
-     * 节点名称
-     */
     private String name;
 
     /**
-     * 节点类型 - dir or file
+     * dir / file
      */
     private String type;
 
-    /**
-     * 父节点id - null表示自己为 root
-     */
     private Integer parentId;
 
-    /**
-     * 所属库id
-     */
     private Integer libraryId;
 
+    /**
+     * 文件扩展名
+     */
+    private String ext;
+
+    /**
+     * MIME 类型
+     */
+    private String mimeType;
+
+    /**
+     * 文件大小（字节）
+     */
+    private Long fileSize;
 }
+

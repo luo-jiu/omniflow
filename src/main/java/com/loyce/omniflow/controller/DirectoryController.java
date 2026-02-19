@@ -4,10 +4,7 @@ import com.loyce.omniflow.common.convention.result.Results;
 import com.loyce.omniflow.dto.resp.NodeRespDTO;
 import com.loyce.omniflow.service.DirectoryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.loyce.omniflow.common.convention.result.Result;
 
@@ -28,4 +25,17 @@ public class DirectoryController {
             @RequestParam("library_id") Long libraryId) {
         return Results.success(directoryService.uploadAndCreateNode(file, parentId, libraryId));
     }
+
+    /**
+     * 获取文件临时访问链接（通过节点 ID）
+     */
+    @GetMapping("/link")
+    public Result<String> getFileLink(
+            @RequestParam("node_id") Long nodeId,
+            @RequestParam("library_id") Long libraryId,
+            @RequestParam(value = "expiry", defaultValue = "60") Integer expiryMinutes
+    ) {
+        return Results.success(directoryService.getPresignedUrl(nodeId, libraryId, expiryMinutes));
+    }
+
 }

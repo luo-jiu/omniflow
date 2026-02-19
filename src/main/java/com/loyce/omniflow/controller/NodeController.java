@@ -1,6 +1,6 @@
 package com.loyce.omniflow.controller;
 
-import com.loyce.omniflow.annotation.LibraryPermission;
+import com.loyce.omniflow.annotation.CheckLibraryPermission;
 import com.loyce.omniflow.common.convention.result.Result;
 import com.loyce.omniflow.common.convention.result.Results;
 import com.loyce.omniflow.dao.entity.NodeDO;
@@ -26,7 +26,7 @@ public class NodeController {
     /**
      * 创建节点
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#requestParam.libraryId")
     @PostMapping()
     public Result<NodeDO> createNode(@RequestBody NodeCreateReqDTO requestParam) {
         return Results.success(nodeService.createNode(requestParam));
@@ -35,7 +35,7 @@ public class NodeController {
     /**
      * 查询该节点的所有子节点(包括子文件夹和子文件)
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#libraryId")
     @GetMapping("/{nodeId}/descendants")
     public Result<List<NodeRespDTO>> getAllDescendants(
             @PathVariable Long nodeId,
@@ -46,7 +46,7 @@ public class NodeController {
     /**
      * 查询该节点的直接子节点
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#libraryId")
     @GetMapping("/{nodeId}/children")
     public Result<List<NodeRespDTO>> getDirectChildren(
             @PathVariable Long nodeId,
@@ -57,7 +57,7 @@ public class NodeController {
     /**
      * 查询该节点的祖先路径
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#libraryId")
     @GetMapping("/{nodeId}/ancestors")
     public Result<List<NodePathRespDTO>> getAncestors(
             @PathVariable Long nodeId,
@@ -68,7 +68,7 @@ public class NodeController {
     /**
      * 查询该节点的完整路径
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#libraryId")
     @GetMapping("/{nodeId}/path")
     public Result<String> getFullPath(@PathVariable Long nodeId, @RequestParam Long libraryId) {
         return Results.success(nodeService.getFullPath(nodeId, libraryId));
@@ -77,7 +77,7 @@ public class NodeController {
     /**
      * 修改节点配置信息
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#@nodePermissionService.getLibraryIdByNodeId(#nodeId)")
     @PutMapping("/{nodeId}")
     public Result<Void> updateNode(@PathVariable Long nodeId, @RequestBody NodeUpdateReqDTO requestParam) {
         nodeService.updateNode(nodeId, requestParam);
@@ -87,7 +87,7 @@ public class NodeController {
     /**
      * 重命名节点
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "@nodePermissionService.getLibraryIdByNodeId(#nodeId)")
     @PatchMapping("/{nodeId}/rename")
     public Result<Void> rename(@PathVariable Long nodeId, @RequestBody NodeRenameReqDTO requestParam) {
         nodeService.rename(nodeId, requestParam);
@@ -97,7 +97,6 @@ public class NodeController {
     /**
      * 移动节点(改变顺序)
      */
-    @LibraryPermission
     @PatchMapping("")
     public Result<Void> reorderNode() {
         nodeService.reorderNode();
@@ -107,7 +106,7 @@ public class NodeController {
     /**
      * 移动节点(改变父节点)
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#requestParam.libraryId")
     @PatchMapping("/{nodeId}/move")
     public Result<Void> moveNode(@PathVariable Long nodeId, @RequestBody NodeMoveReqDTO requestParam) {
         nodeService.moveNode(nodeId, requestParam);
@@ -117,7 +116,7 @@ public class NodeController {
     /**
      * 删除单个节点以及其后代
      */
-    @LibraryPermission
+    @CheckLibraryPermission(libraryId = "#libraryId")
     @DeleteMapping("/{ancestorId}/library/{libraryId}")
     public Result<Boolean> deleteNodeAndChildren(
             @PathVariable Long ancestorId,
