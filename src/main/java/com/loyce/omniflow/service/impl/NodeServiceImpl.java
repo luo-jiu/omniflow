@@ -33,6 +33,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements NodeService {
 
+    private static final int SORT_STEP = 1024;
+    private static final int MIN_SORT_GAP = 2;
+    private static final int MAX_SAFE_SORT_ORDER = Integer.MAX_VALUE - SORT_STEP * 4;
+
     private final NodeClosureMapper nodeClosureMapper;
     private final NodeNameConflictChecker checker;
     private final WindowsFileNameValidator windowsFileNameValidator;
@@ -179,55 +183,62 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void moveNode(Long nodeId, NodeMoveReqDTO req) {
-        Long newParentId = req.getNewParentId();
+        Long newParentId = normalizeParentId(req.getNewParentId());
         Long libraryId = req.getLibraryId();
         Long beforeNodeId = req.getBeforeNodeId();
-        // 判断移动目标下是否有重名文件
-        checker.checkDuplicateName(req.getName(), newParentId, libraryId, nodeId);
 
         // 1. 校验节点是否存在
         NodeDO node = baseMapper.selectByIdAndLibraryId(nodeId, libraryId);
         if (node == null) {
             throw new ClientException("Node not found with ID: " + nodeId);
         }
+        Long oldParentId = normalizeParentId(node.getParentId());
 
-        // 2. 校验新父节点是否存在
-        if (newParentId != 0) { // 0 表示根节点
-            NodeDO newParent = baseMapper.selectByIdAndLibraryId(newParentId, libraryId);
-            if (newParent == null) {
-                throw new ClientException("New parent node not found with ID: " + newParentId);
-            }
+        if (nodeId.equals(newParentId)) {
+            throw new ClientException("Cannot move node under itself");
+        }
+        if (newParentId <= 0) {
+            throw new ClientException("Target parent is invalid: " + newParentId);
         }
 
-        // 3. 防止将节点移动到自身或其后代下（避免循环）
+        // 2. 并发保护：按固定顺序锁定受影响父目录与其直接子节点
+        lockMoveScope(libraryId, oldParentId, newParentId);
+        validateTargetParentAsDirectory(newParentId, libraryId);
+
+        // 3. 判断移动目标下是否有重名文件
+        checker.checkDuplicateName(node.getName(), newParentId, libraryId, nodeId);
+
+        // 4. 防止将节点移动到自身或其后代下（避免循环）
         if (isDescendant(nodeId, newParentId, libraryId)) {
             throw new ClientException("Cannot move node to its descendant");
         }
 
-        // 4. 计算新的sort_order
-        Integer newOrder;
-        if (beforeNodeId!= null) {
+        // 5. 计算新的 sort_order（优先使用间隔插入，空间不足时仅重排目标父目录）
+        Integer newOrder = null;
+        if (beforeNodeId != null) {
             NodeDO beforeNode = baseMapper.selectByIdAndLibraryId(beforeNodeId, libraryId);
             if (beforeNode == null) {
                 throw new ClientException("Before-node not found: " + beforeNodeId);
             }
-            // 在 beforeNode前插入，所有 >= beforeNode.sort_order的节点整体后移
-            baseMapper.incrementSortOrderAfter(newParentId, libraryId, beforeNode.getSortOrder());
-            newOrder = beforeNode.getSortOrder();
+            if (beforeNode.getId().equals(nodeId)) {
+                return;
+            }
+            if (!normalizeParentId(beforeNode.getParentId()).equals(newParentId)) {
+                throw new ClientException("Before-node must belong to target parent");
+            }
+            newOrder = computeOrderBefore(newParentId, libraryId, beforeNode);
         } else {
-            // 没指定目标，放到最后
-            newOrder = baseMapper.getSortByLibraryIdAndParentId(newParentId, libraryId) + 15;
+            newOrder = computeOrderAtEnd(newParentId, libraryId);
         }
 
-        // 5. 更新 nodes 表中的 parent_id
-        // baseMapper.updateParentAndSort(nodeId, targetParentId, newOrder, libraryId);
+        // 6. 更新 nodes 表中的 parent_id 与 sort_order
         baseMapper.updateParentId(nodeId, newParentId, newOrder, libraryId);
 
-        // 6. 删除旧关系
-        nodeClosureMapper.deleteOldRelations(nodeId, libraryId);
-
-        // 7. 插入新关系
-        nodeClosureMapper.insertNewRelations(nodeId, newParentId, libraryId);
+        // 7. 父目录变化时，更新 closure 关系；同父排序无需改 closure
+        if (!oldParentId.equals(newParentId)) {
+            nodeClosureMapper.deleteOldRelations(nodeId, libraryId);
+            nodeClosureMapper.insertNewRelations(nodeId, newParentId, libraryId);
+        }
     }
 
     @Override
@@ -352,6 +363,105 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     // 辅助方法：检查 targetId 是否是 nodeId 的后代
     private boolean isDescendant(Long nodeId, Long targetId, Long libraryId) {
         return nodeClosureMapper.existsDescendant(nodeId, targetId, libraryId) > 0;
+    }
+
+    private Long normalizeParentId(Long parentId) {
+        return parentId == null ? 0L : parentId;
+    }
+
+    private void lockMoveScope(Long libraryId, Long oldParentId, Long newParentId) {
+        Long first = oldParentId <= newParentId ? oldParentId : newParentId;
+        Long second = oldParentId <= newParentId ? newParentId : oldParentId;
+
+        lockParentScope(libraryId, first);
+        if (!second.equals(first)) {
+            lockParentScope(libraryId, second);
+        }
+    }
+
+    private void lockParentScope(Long libraryId, Long parentId) {
+        if (parentId > 0) {
+            Long locked = baseMapper.lockNode(parentId, libraryId);
+            if (locked == null) {
+                throw new ClientException("Target parent node not found with ID: " + parentId);
+            }
+        }
+        baseMapper.lockActiveChildrenByParent(parentId, libraryId);
+    }
+
+    private void validateTargetParentAsDirectory(Long parentId, Long libraryId) {
+        NodeDO parentNode = baseMapper.selectByIdAndLibraryId(parentId, libraryId);
+        if (parentNode == null) {
+            throw new ClientException("Target parent node not found with ID: " + parentId);
+        }
+        if (parentNode.getType() == null || parentNode.getType() != 0) {
+            throw new ClientException("Target parent must be a directory");
+        }
+    }
+
+    private Integer computeOrderBefore(Long parentId, Long libraryId, NodeDO beforeNode) {
+        Integer prev = baseMapper.getPrevSortOrderBeforeNode(
+                parentId,
+                libraryId,
+                beforeNode.getSortOrder(),
+                beforeNode.getId()
+        );
+        int left = prev == null ? 0 : prev;
+        int right = beforeNode.getSortOrder();
+
+        if (right - left <= MIN_SORT_GAP) {
+            reindexParent(parentId, libraryId);
+            NodeDO refreshedBefore = baseMapper.selectByIdAndLibraryId(beforeNode.getId(), libraryId);
+            if (refreshedBefore == null) {
+                throw new ClientException("Before-node not found after reindex: " + beforeNode.getId());
+            }
+            prev = baseMapper.getPrevSortOrderBeforeNode(
+                    parentId,
+                    libraryId,
+                    refreshedBefore.getSortOrder(),
+                    refreshedBefore.getId()
+            );
+            left = prev == null ? 0 : prev;
+            right = refreshedBefore.getSortOrder();
+        }
+
+        if (right - left <= 1) {
+            // 极端冲突兜底：保持稳定插入语义
+            baseMapper.incrementSortOrderAfter(parentId, libraryId, right);
+            return right;
+        }
+        return left + ((right - left) / 2);
+    }
+
+    private Integer computeOrderAtEnd(Long parentId, Long libraryId) {
+        Integer maxOrder = baseMapper.getSortByLibraryIdAndParentId(parentId, libraryId);
+        if (maxOrder == null) {
+            return SORT_STEP;
+        }
+        if (maxOrder >= MAX_SAFE_SORT_ORDER) {
+            reindexParent(parentId, libraryId);
+            maxOrder = baseMapper.getSortByLibraryIdAndParentId(parentId, libraryId);
+        }
+        int safeBase = maxOrder == null ? 0 : maxOrder;
+        return safeBase + SORT_STEP;
+    }
+
+    /**
+     * 仅重排某个父目录的第一层子节点，恢复间隔号空间。
+     */
+    private void reindexParent(Long parentId, Long libraryId) {
+        List<NodeDO> siblings = baseMapper.selectActiveChildrenForReindex(parentId, libraryId);
+        if (CollectionUtils.isEmpty(siblings)) {
+            return;
+        }
+        int order = SORT_STEP;
+        for (NodeDO sibling : siblings) {
+            baseMapper.updateSortOrder(sibling.getId(), libraryId, order);
+            if (order > Integer.MAX_VALUE - SORT_STEP) {
+                throw new ClientException("sort_order range exhausted under parent: " + parentId);
+            }
+            order += SORT_STEP;
+        }
     }
 
     // 类型转换

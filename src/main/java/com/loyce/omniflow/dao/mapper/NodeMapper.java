@@ -48,7 +48,8 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
-            "WHERE nc.ancestor = #{nodeId} AND nc.depth = 1 AND nc.library_id = #{libraryId} AND n.deleted_at IS NULL")
+            "WHERE nc.ancestor = #{nodeId} AND nc.depth = 1 AND nc.library_id = #{libraryId} AND n.deleted_at IS NULL " +
+            "ORDER BY n.sort_order ASC, n.id ASC")
     List<NodeRespDTO> findDirectChildren(Long nodeId, Long libraryId);
 
     // 查询节点的祖先路径
@@ -75,9 +76,13 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
     @Select("SELECT * FROM nodes WHERE id = #{id} AND library_id = #{libraryId}")
     NodeDO selectByIdAndLibraryIdIncludeDeleted(Long id, Long libraryId);
 
-    @Update("UPDATE nodes SET parent_id = #{newParentId}, sort_order = #{sortOrder} " +
+    @Update("UPDATE nodes SET parent_id = #{newParentId}, sort_order = #{newOrder} " +
             "WHERE id = #{nodeId} AND library_id = #{libraryId}")
     void updateParentId(Long nodeId, Long newParentId, Integer newOrder, Long libraryId);
+
+    @Update("UPDATE nodes SET sort_order = #{sortOrder} " +
+            "WHERE id = #{nodeId} AND library_id = #{libraryId}")
+    void updateSortOrder(Long nodeId, Long libraryId, Integer sortOrder);
 
     @Update("UPDATE nodes " +
             "SET built_in_type = #{requestParam.builtInType}, archive_mode = #{requestParam.archiveMode} " +
@@ -115,6 +120,36 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "AND deleted_at IS NULL " +
             "AND sort_order >= #{sortOrder}")
     void incrementSortOrderAfter(Long parentId, Long libraryId, Integer sortOrder);
+
+    @Select("SELECT sort_order FROM nodes " +
+            "WHERE parent_id = #{parentId} " +
+            "AND library_id = #{libraryId} " +
+            "AND deleted_at IS NULL " +
+            "AND (sort_order < #{beforeSortOrder} OR (sort_order = #{beforeSortOrder} AND id < #{beforeNodeId})) " +
+            "ORDER BY sort_order DESC, id DESC LIMIT 1")
+    Integer getPrevSortOrderBeforeNode(Long parentId, Long libraryId, Integer beforeSortOrder, Long beforeNodeId);
+
+    @Select("SELECT id, sort_order AS sortOrder FROM nodes " +
+            "WHERE parent_id = #{parentId} " +
+            "AND library_id = #{libraryId} " +
+            "AND deleted_at IS NULL " +
+            "ORDER BY sort_order ASC, id ASC")
+    List<NodeDO> selectActiveChildrenForReindex(Long parentId, Long libraryId);
+
+    @Select("SELECT id FROM nodes " +
+            "WHERE id = #{nodeId} " +
+            "AND library_id = #{libraryId} " +
+            "AND deleted_at IS NULL " +
+            "FOR UPDATE")
+    Long lockNode(Long nodeId, Long libraryId);
+
+    @Select("SELECT id FROM nodes " +
+            "WHERE parent_id = #{parentId} " +
+            "AND library_id = #{libraryId} " +
+            "AND deleted_at IS NULL " +
+            "ORDER BY sort_order ASC, id ASC " +
+            "FOR UPDATE")
+    List<Long> lockActiveChildrenByParent(Long parentId, Long libraryId);
 
     // 批量查询节点信息（用于删除时获取文件路径）
     @Select({

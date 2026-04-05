@@ -6,7 +6,7 @@ import lombok.Data;
 public class NodeMoveReqDTO {
 
     /**
-     * 要移动的文件名
+     * 节点名称（兼容字段，服务端以数据库中的节点名为准）
      */
     private String name;
 
