@@ -90,7 +90,7 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
     Integer countByNameAndParent(String name, Long parentId, Long libraryId, Long excludeId);
 
     @Update("UPDATE nodes " +
-            "SET name = #{name} " +
+            "SET name = #{name}, ext = #{ext} " +
             "WHERE id = #{id}")
     void rename(NodeRenameReqDTO requestParam);
 

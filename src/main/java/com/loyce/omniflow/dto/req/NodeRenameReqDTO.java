@@ -15,6 +15,11 @@ public class NodeRenameReqDTO {
      */
     private String name;
 
+    /**
+     * 新扩展名（仅文件）；可为空字符串表示删除后缀
+     */
+    private String ext;
+
 //    /**
 //     * 新的父节点 ID
 //     */

@@ -16,6 +16,7 @@ import com.loyce.omniflow.dto.resp.NodeRespDTO;
 import com.loyce.omniflow.event.NodeDeleteEvent;
 import com.loyce.omniflow.service.NodeService;
 import com.loyce.omniflow.service.helper.NodeNameConflictChecker;
+import com.loyce.omniflow.service.helper.WindowsFileNameValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     private final NodeClosureMapper nodeClosureMapper;
     private final NodeNameConflictChecker checker;
+    private final WindowsFileNameValidator windowsFileNameValidator;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -146,8 +148,22 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     @Override
     public void rename(Long nodeId, NodeRenameReqDTO req) {
         NodeDO nodeDO = baseMapper.selectById(nodeId);
+        if (nodeDO == null) {
+            throw new ClientException("Node not found with ID: " + nodeId);
+        }
+
+        String normalizedName = windowsFileNameValidator.normalizeName(req.getName());
+        String normalizedExt = "";
+        if (isFile(nodeDO.getType())) {
+            normalizedExt = windowsFileNameValidator.normalizeExt(req.getExt());
+        }
+        windowsFileNameValidator.validate(normalizedName, normalizedExt);
+
         // 重命名时需判断是否有相同文件名
-        checker.checkDuplicateName(req.getName(), nodeDO.getParentId(), nodeDO.getLibraryId(), nodeDO.getId());
+        checker.checkDuplicateName(normalizedName, nodeDO.getParentId(), nodeDO.getLibraryId(), nodeDO.getId());
+        req.setId(nodeId);
+        req.setName(normalizedName);
+        req.setExt(normalizedExt);
         baseMapper.rename(req);
     }
 
