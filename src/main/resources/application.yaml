@@ -11,11 +11,6 @@ spring:
       max-request-size: ${OMNIFLOW_MAX_REQUEST_SIZE:1200MB}
       file-size-threshold: 2KB
       resolve-lazily: false
-
-omniflow:
-  upload:
-    content-length-limit-bytes: ${OMNIFLOW_CONTENT_LENGTH_LIMIT_BYTES:1258291200}
-
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -26,6 +21,13 @@ omniflow:
     redis:
       host: 127.0.0.1
       port: 6379
+
+omniflow:
+  upload:
+    content-length-limit-bytes: ${OMNIFLOW_CONTENT_LENGTH_LIMIT_BYTES:1258291200}
+  recycle-bin:
+    retention-days: ${OMNIFLOW_RECYCLE_BIN_RETENTION_DAYS:30}
+    cleanup-cron: "${OMNIFLOW_RECYCLE_BIN_CLEANUP_CRON:0 30 4 * * ?}"
 
 search:
   engine: mysql

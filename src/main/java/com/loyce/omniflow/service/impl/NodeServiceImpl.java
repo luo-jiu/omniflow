@@ -11,6 +11,7 @@ import com.loyce.omniflow.dto.req.NodeCreateReqDTO;
 import com.loyce.omniflow.dto.req.NodeMoveReqDTO;
 import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
+import com.loyce.omniflow.dto.resp.NodeRecycleRespDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
 import com.loyce.omniflow.dto.resp.NodeRespDTO;
 import com.loyce.omniflow.event.NodeDeleteEvent;
@@ -23,7 +24,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -230,46 +234,119 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteNodeAndChildren(Long ancestorId, Long libraryId) {
         try {
-            // 1. 先获取需要删除的 descendant ID 列表（包括自身）
+            // 软删除：仅标记 deleted_at，保留 node_closure 和 MinIO 文件用于回收站恢复
             List<Long> descendantIds = nodeClosureMapper.selectDescendantIdsByAncestorAndLibrary(ancestorId, libraryId);
             if (CollectionUtils.isEmpty(descendantIds)) {
                 return true;
             }
-
-            // 2. 查询所有要删除的节点信息，用于构建文件路径
-            List<NodeDO> nodesToDelete = baseMapper.selectByIdsAndLibraryId(descendantIds, libraryId);
-            
-            // 3. 筛选出文件节点（type=1），并构建文件路径列表
-            List<String> filePaths = new ArrayList<>();
-            for (NodeDO node : nodesToDelete) {
-                // 只处理文件节点（type=1），文件夹不需要删除MinIO文件
-                if (node.getType() != null && node.getType() == 1) {
-                    try {
-                        String fullPath = getStorageKey(node.getId());
-                        filePaths.add(fullPath);
-                    } catch (Exception e) {
-                        // 如果获取路径失败，记录日志但不影响删除流程
-                        // 可能节点已经被删除或路径不存在，继续处理其他节点
-                    }
-                }
-            }
-
-            // 4. 删除 node_closure 表中的相关记录
-            nodeClosureMapper.deleteClosuresByAncestorAndLibrary(ancestorId, libraryId);
-
-            // 5. 删除 nodes 表中的相关记录（使用逻辑删除）
-            if (!descendantIds.isEmpty()) {
-                this.removeByIds(descendantIds); // MyBatis-Plus 提供的批量删除方法（逻辑删除）
-            }
-
-            // 6. 发布删除事件，在事务提交后删除MinIO文件
-            if (!filePaths.isEmpty()) {
-                eventPublisher.publishEvent(new NodeDeleteEvent(this, filePaths, libraryId));
-            }
+            this.removeByIds(descendantIds);
             return true;
         } catch (Exception e) {
             throw new ClientException("删除节点及其子节点失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public List<NodeRecycleRespDTO> getRecycleBinItems(Long libraryId) {
+        List<NodeRecycleRespDTO> deletedNodes = baseMapper.selectDeletedByLibraryId(libraryId);
+        if (CollectionUtils.isEmpty(deletedNodes)) {
+            return new ArrayList<>();
+        }
+
+        Set<Long> deletedNodeIds = new HashSet<>();
+        for (NodeRecycleRespDTO item : deletedNodes) {
+            deletedNodeIds.add(item.getId());
+            item.setType(mapType(item.getType()));
+        }
+
+        List<NodeRecycleRespDTO> topLevelItems = new ArrayList<>();
+        for (NodeRecycleRespDTO item : deletedNodes) {
+            Long parentId = item.getParentId();
+            if (parentId == null || parentId <= 0 || !deletedNodeIds.contains(parentId)) {
+                topLevelItems.add(item);
+            }
+        }
+
+        topLevelItems.sort(Comparator.comparing(NodeRecycleRespDTO::getDeletedAt).reversed()
+                .thenComparing(NodeRecycleRespDTO::getId, Comparator.reverseOrder()));
+        return topLevelItems;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean restoreNodeAndChildren(Long ancestorId, Long libraryId) {
+        NodeDO targetNode = baseMapper.selectByIdAndLibraryIdIncludeDeleted(ancestorId, libraryId);
+        if (targetNode == null) {
+            throw new ClientException("回收站节点不存在");
+        }
+        if (targetNode.getDeletedAt() == null) {
+            return true;
+        }
+
+        List<Long> descendantIds = nodeClosureMapper.selectDescendantIdsByAncestorAndLibrary(ancestorId, libraryId);
+        if (CollectionUtils.isEmpty(descendantIds)) {
+            throw new ClientException("该删除记录无法恢复，可能是历史彻底删除数据");
+        }
+
+        if (targetNode.getParentId() != null && targetNode.getParentId() > 0) {
+            NodeDO parentNode = baseMapper.selectByIdAndLibraryIdIncludeDeleted(targetNode.getParentId(), libraryId);
+            if (parentNode == null) {
+                throw new ClientException("无法恢复：父目录不存在");
+            }
+            if (parentNode.getDeletedAt() != null && !descendantIds.contains(parentNode.getId())) {
+                throw new ClientException("无法恢复：父目录仍在回收站中");
+            }
+        }
+
+        List<NodeDO> nodesToRestore = baseMapper.selectByIdsAndLibraryId(descendantIds, libraryId);
+        Set<Long> restoringNodeIds = new HashSet<>(descendantIds);
+        for (NodeDO node : nodesToRestore) {
+            if (node.getDeletedAt() == null) {
+                continue;
+            }
+            Long parentId = node.getParentId();
+            if (parentId != null && restoringNodeIds.contains(parentId)) {
+                // 父节点也在同一批恢复内，重名校验由父节点外层边界统一处理即可
+                continue;
+            }
+            checker.checkDuplicateName(node.getName(), parentId, libraryId, node.getId());
+        }
+
+        baseMapper.restoreByIds(descendantIds, libraryId);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean hardDeleteNodeAndChildren(Long ancestorId, Long libraryId) {
+        NodeDO targetNode = baseMapper.selectByIdAndLibraryIdIncludeDeleted(ancestorId, libraryId);
+        if (targetNode == null) {
+            return true;
+        }
+        if (targetNode.getDeletedAt() == null) {
+            throw new ClientException("仅支持彻底删除回收站中的节点");
+        }
+
+        List<Long> descendantIds = nodeClosureMapper.selectDescendantIdsByAncestorAndLibrary(ancestorId, libraryId);
+        if (CollectionUtils.isEmpty(descendantIds)) {
+            return true;
+        }
+
+        List<NodeDO> nodesToDelete = baseMapper.selectByIdsAndLibraryId(descendantIds, libraryId);
+        List<String> filePaths = new ArrayList<>();
+        for (NodeDO node : nodesToDelete) {
+            if (node.getType() != null && node.getType() == 1 && node.getStorageKey() != null && !node.getStorageKey().isBlank()) {
+                filePaths.add(node.getStorageKey());
+            }
+        }
+
+        nodeClosureMapper.deleteClosuresByAncestorAndLibrary(ancestorId, libraryId);
+        baseMapper.hardDeleteByIds(descendantIds, libraryId);
+
+        if (!filePaths.isEmpty()) {
+            eventPublisher.publishEvent(new NodeDeleteEvent(this, filePaths, libraryId));
+        }
+        return true;
     }
 
     // 辅助方法：检查 targetId 是否是 nodeId 的后代

@@ -6,6 +6,7 @@ import com.loyce.omniflow.dto.req.NodeCreateReqDTO;
 import com.loyce.omniflow.dto.req.NodeMoveReqDTO;
 import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
+import com.loyce.omniflow.dto.resp.NodeRecycleRespDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
 import com.loyce.omniflow.dto.resp.NodeRespDTO;
 
@@ -99,4 +100,19 @@ public interface NodeService extends IService<NodeDO> {
      * @return
      */
     boolean deleteNodeAndChildren(Long ancestorId, Long libraryId);
+
+    /**
+     * 查询回收站顶层条目（同一次删除形成的子项会折叠）
+     */
+    List<NodeRecycleRespDTO> getRecycleBinItems(Long libraryId);
+
+    /**
+     * 恢复回收站中的节点及其后代
+     */
+    boolean restoreNodeAndChildren(Long ancestorId, Long libraryId);
+
+    /**
+     * 彻底删除回收站中的节点及其后代（含 MinIO 文件）
+     */
+    boolean hardDeleteNodeAndChildren(Long ancestorId, Long libraryId);
 }

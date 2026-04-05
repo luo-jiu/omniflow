@@ -8,6 +8,7 @@ import com.loyce.omniflow.dto.req.NodeCreateReqDTO;
 import com.loyce.omniflow.dto.req.NodeMoveReqDTO;
 import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
+import com.loyce.omniflow.dto.resp.NodeRecycleRespDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
 import com.loyce.omniflow.dto.resp.NodeRespDTO;
 import com.loyce.omniflow.service.NodeService;
@@ -122,5 +123,36 @@ public class NodeController {
             @PathVariable Long ancestorId,
             @PathVariable Long libraryId) {
         return Results.success(nodeService.deleteNodeAndChildren(ancestorId, libraryId));
+    }
+
+    /**
+     * 回收站列表（顶层条目）
+     */
+    @CheckLibraryPermission(libraryId = "#libraryId")
+    @GetMapping("/recycle/library/{libraryId}")
+    public Result<List<NodeRecycleRespDTO>> getRecycleBinItems(@PathVariable Long libraryId) {
+        return Results.success(nodeService.getRecycleBinItems(libraryId));
+    }
+
+    /**
+     * 从回收站恢复节点及其后代
+     */
+    @CheckLibraryPermission(libraryId = "#libraryId")
+    @PatchMapping("/{ancestorId}/library/{libraryId}/restore")
+    public Result<Boolean> restoreNodeAndChildren(
+            @PathVariable Long ancestorId,
+            @PathVariable Long libraryId) {
+        return Results.success(nodeService.restoreNodeAndChildren(ancestorId, libraryId));
+    }
+
+    /**
+     * 彻底删除回收站中的节点及其后代
+     */
+    @CheckLibraryPermission(libraryId = "#libraryId")
+    @DeleteMapping("/{ancestorId}/library/{libraryId}/hard")
+    public Result<Boolean> hardDeleteNodeAndChildren(
+            @PathVariable Long ancestorId,
+            @PathVariable Long libraryId) {
+        return Results.success(nodeService.hardDeleteNodeAndChildren(ancestorId, libraryId));
     }
 }
