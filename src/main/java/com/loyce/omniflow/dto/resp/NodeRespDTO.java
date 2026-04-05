@@ -35,5 +35,14 @@ public class NodeRespDTO {
      * 文件大小（字节）
      */
     private Long fileSize;
-}
 
+    /**
+     * 内置类型（文件/文件夹均可）
+     */
+    private String builtInType;
+
+    /**
+     * 是否开启归档模式（0：否，1：是）
+     */
+    private Integer archiveMode;
+}

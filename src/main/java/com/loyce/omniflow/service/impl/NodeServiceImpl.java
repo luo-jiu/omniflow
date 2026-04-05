@@ -149,7 +149,31 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     @Override
     public void updateNode(Long nodeId, NodeUpdateReqDTO requestParam) {
+        NodeDO node = baseMapper.selectById(nodeId);
+        if (node == null) {
+            throw new ClientException("Node not found with ID: " + nodeId);
+        }
+
+        String builtInType = requestParam.getBuiltInType();
+        if (builtInType == null || builtInType.trim().isEmpty()) {
+            builtInType = node.getBuiltInType() == null || node.getBuiltInType().isBlank()
+                    ? "DEF"
+                    : node.getBuiltInType();
+        } else {
+            builtInType = builtInType.trim().toUpperCase();
+        }
+
+        Integer archiveMode = requestParam.getArchiveMode();
+        if (archiveMode == null) {
+            archiveMode = node.getArchiveMode() == null ? 0 : node.getArchiveMode();
+        }
+        if (archiveMode != 0 && archiveMode != 1) {
+            throw new ClientException("archiveMode only supports 0 or 1");
+        }
+
         requestParam.setId(nodeId);
+        requestParam.setBuiltInType(builtInType);
+        requestParam.setArchiveMode(archiveMode);
         baseMapper.updateNode(requestParam);
     }
 
@@ -238,6 +262,46 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         if (!oldParentId.equals(newParentId)) {
             nodeClosureMapper.deleteOldRelations(nodeId, libraryId);
             nodeClosureMapper.insertNewRelations(nodeId, newParentId, libraryId);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void sortComicChildrenByName(Long nodeId) {
+        NodeDO parentNode = baseMapper.selectById(nodeId);
+        if (parentNode == null || parentNode.getDeletedAt() != null) {
+            throw new ClientException("Node not found with ID: " + nodeId);
+        }
+        if (parentNode.getType() == null || parentNode.getType() != 0) {
+            throw new ClientException("Target node must be a directory");
+        }
+
+        String builtInType = parentNode.getBuiltInType() == null
+                ? "DEF"
+                : parentNode.getBuiltInType().trim().toUpperCase();
+        if (!"COMIC".equals(builtInType)) {
+            throw new ClientException("Only COMIC directories support name sorting");
+        }
+
+        Long libraryId = parentNode.getLibraryId();
+        if (libraryId == null) {
+            throw new ClientException("Target node library is invalid");
+        }
+
+        lockParentScope(libraryId, nodeId);
+        List<NodeDO> children = baseMapper.selectActiveChildrenForSortByName(nodeId, libraryId);
+        if (CollectionUtils.isEmpty(children)) {
+            return;
+        }
+
+        children.sort(NodeServiceImpl::compareChildrenByNaturalName);
+        int order = SORT_STEP;
+        for (NodeDO child : children) {
+            baseMapper.updateSortOrder(child.getId(), libraryId, order);
+            if (order > Integer.MAX_VALUE - SORT_STEP) {
+                throw new ClientException("sort_order range exhausted under parent: " + nodeId);
+            }
+            order += SORT_STEP;
         }
     }
 
@@ -462,6 +526,91 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
             }
             order += SORT_STEP;
         }
+    }
+
+    private static int compareChildrenByNaturalName(NodeDO left, NodeDO right) {
+        String leftName = buildSortableName(left);
+        String rightName = buildSortableName(right);
+        int cmp = naturalCompare(leftName, rightName);
+        if (cmp != 0) {
+            return cmp;
+        }
+        return Long.compare(left.getId(), right.getId());
+    }
+
+    private static String buildSortableName(NodeDO node) {
+        String baseName = node.getName() == null ? "" : node.getName().trim();
+        if (!isFile(node.getType())) {
+            return baseName;
+        }
+        String ext = node.getExt();
+        if (ext == null || ext.isBlank()) {
+            return baseName;
+        }
+        return baseName + "." + ext.trim().toLowerCase();
+    }
+
+    private static int naturalCompare(String left, String right) {
+        int li = 0;
+        int ri = 0;
+        final int leftLength = left.length();
+        final int rightLength = right.length();
+
+        while (li < leftLength && ri < rightLength) {
+            char leftChar = left.charAt(li);
+            char rightChar = right.charAt(ri);
+            boolean leftIsDigit = Character.isDigit(leftChar);
+            boolean rightIsDigit = Character.isDigit(rightChar);
+
+            if (leftIsDigit && rightIsDigit) {
+                int leftNumStart = li;
+                int rightNumStart = ri;
+                while (li < leftLength && Character.isDigit(left.charAt(li))) {
+                    li++;
+                }
+                while (ri < rightLength && Character.isDigit(right.charAt(ri))) {
+                    ri++;
+                }
+
+                int leftNoZero = leftNumStart;
+                while (leftNoZero < li && left.charAt(leftNoZero) == '0') {
+                    leftNoZero++;
+                }
+                int rightNoZero = rightNumStart;
+                while (rightNoZero < ri && right.charAt(rightNoZero) == '0') {
+                    rightNoZero++;
+                }
+
+                int leftNumericLength = li - leftNoZero;
+                int rightNumericLength = ri - rightNoZero;
+                if (leftNumericLength != rightNumericLength) {
+                    return Integer.compare(leftNumericLength, rightNumericLength);
+                }
+
+                for (int i = 0; i < leftNumericLength; i++) {
+                    int diff = left.charAt(leftNoZero + i) - right.charAt(rightNoZero + i);
+                    if (diff != 0) {
+                        return diff;
+                    }
+                }
+
+                int leftRawLength = li - leftNumStart;
+                int rightRawLength = ri - rightNumStart;
+                if (leftRawLength != rightRawLength) {
+                    return Integer.compare(leftRawLength, rightRawLength);
+                }
+                continue;
+            }
+
+            char leftLower = Character.toLowerCase(leftChar);
+            char rightLower = Character.toLowerCase(rightChar);
+            if (leftLower != rightLower) {
+                return Character.compare(leftLower, rightLower);
+            }
+            li++;
+            ri++;
+        }
+        return Integer.compare(leftLength, rightLength);
     }
 
     // 类型转换

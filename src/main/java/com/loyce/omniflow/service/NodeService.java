@@ -93,6 +93,11 @@ public interface NodeService extends IService<NodeDO> {
     void moveNode(Long nodeId, NodeMoveReqDTO requestParam);
 
     /**
+     * 漫画目录按名称排序其直接子项，并重建 sort_order 间隔序号
+     */
+    void sortComicChildrenByName(Long nodeId);
+
+    /**
      * 删除节点以及子节点
      *
      * @param ancestorId

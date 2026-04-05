@@ -78,7 +78,7 @@ public class NodeController {
     /**
      * 修改节点配置信息
      */
-    @CheckLibraryPermission(libraryId = "#@nodePermissionService.getLibraryIdByNodeId(#nodeId)")
+    @CheckLibraryPermission(libraryId = "@nodePermissionService.getLibraryIdByNodeId(#nodeId)")
     @PutMapping("/{nodeId}")
     public Result<Void> updateNode(@PathVariable Long nodeId, @RequestBody NodeUpdateReqDTO requestParam) {
         nodeService.updateNode(nodeId, requestParam);
@@ -111,6 +111,16 @@ public class NodeController {
     @PatchMapping("/{nodeId}/move")
     public Result<Void> moveNode(@PathVariable Long nodeId, @RequestBody NodeMoveReqDTO requestParam) {
         nodeService.moveNode(nodeId, requestParam);
+        return Results.success();
+    }
+
+    /**
+     * 漫画目录按名称排序（直接子项）
+     */
+    @CheckLibraryPermission(libraryId = "@nodePermissionService.getLibraryIdByNodeId(#nodeId)")
+    @PatchMapping("/{nodeId}/comic/sort-by-name")
+    public Result<Void> sortComicChildrenByName(@PathVariable Long nodeId) {
+        nodeService.sortComicChildrenByName(nodeId);
         return Results.success();
     }
 

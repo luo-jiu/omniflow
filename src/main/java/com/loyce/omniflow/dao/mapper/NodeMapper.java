@@ -29,6 +29,8 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.ext," +
             "n.mime_type AS mimeType," +
             "n.file_size AS fileSize," +
+            "n.built_in_type AS builtInType," +
+            "n.archive_mode AS archiveMode," +
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
@@ -45,6 +47,8 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.ext," +
             "n.mime_type AS mimeType," +
             "n.file_size AS fileSize," +
+            "n.built_in_type AS builtInType," +
+            "n.archive_mode AS archiveMode," +
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
@@ -85,8 +89,8 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
     void updateSortOrder(Long nodeId, Long libraryId, Integer sortOrder);
 
     @Update("UPDATE nodes " +
-            "SET built_in_type = #{requestParam.builtInType}, archive_mode = #{requestParam.archiveMode} " +
-            "WHERE id = #{requestParam.id}")
+            "SET built_in_type = #{builtInType}, archive_mode = #{archiveMode} " +
+            "WHERE id = #{id}")
     void updateNode(NodeUpdateReqDTO requestParam);
 
     @Select({
@@ -135,6 +139,13 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "AND deleted_at IS NULL " +
             "ORDER BY sort_order ASC, id ASC")
     List<NodeDO> selectActiveChildrenForReindex(Long parentId, Long libraryId);
+
+    @Select("SELECT id, name, ext, type FROM nodes " +
+            "WHERE parent_id = #{parentId} " +
+            "AND library_id = #{libraryId} " +
+            "AND deleted_at IS NULL " +
+            "ORDER BY id ASC")
+    List<NodeDO> selectActiveChildrenForSortByName(Long parentId, Long libraryId);
 
     @Select("SELECT id FROM nodes " +
             "WHERE id = #{nodeId} " +
