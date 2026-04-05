@@ -1,21 +1,25 @@
 server:
   port: 8848
   tomcat:
-    max-swallow-size: 100MB
-    max-http-form-post-size: 200MB
+    max-swallow-size: ${OMNIFLOW_MAX_SWALLOW_SIZE:1200MB}
+    max-http-form-post-size: ${OMNIFLOW_MAX_HTTP_FORM_POST_SIZE:1200MB}
 
 spring:
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 200MB
+      max-file-size: ${OMNIFLOW_MAX_FILE_SIZE:1024MB}
+      max-request-size: ${OMNIFLOW_MAX_REQUEST_SIZE:1200MB}
       file-size-threshold: 2KB
       resolve-lazily: false
+
+omniflow:
+  upload:
+    content-length-limit-bytes: ${OMNIFLOW_CONTENT_LENGTH_LIMIT_BYTES:1258291200}
 
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3307/omniflow?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://127.0.0.1:3306/omniflow?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true&allowMultiQueries=true&serverTimezone=Asia/Shanghai
     username: root
     password: 123456
   data:
