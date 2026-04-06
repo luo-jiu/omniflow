@@ -20,4 +20,9 @@ public class NodeUpdateReqDTO {
      */
     private Integer archiveMode;
 
+    /**
+     * 视图扩展元数据（JSON）
+     */
+    private String viewMeta;
+
 }

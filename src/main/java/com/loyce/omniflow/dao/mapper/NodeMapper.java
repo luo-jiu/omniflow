@@ -31,6 +31,7 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.file_size AS fileSize," +
             "n.built_in_type AS builtInType," +
             "n.archive_mode AS archiveMode," +
+            "n.view_meta AS viewMeta," +
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
@@ -49,12 +50,70 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.file_size AS fileSize," +
             "n.built_in_type AS builtInType," +
             "n.archive_mode AS archiveMode," +
+            "n.view_meta AS viewMeta," +
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
             "WHERE nc.ancestor = #{nodeId} AND nc.depth = 1 AND nc.library_id = #{libraryId} AND n.deleted_at IS NULL " +
             "ORDER BY n.sort_order ASC, n.id ASC")
     List<NodeRespDTO> findDirectChildren(Long nodeId, Long libraryId);
+
+    @Select("SELECT " +
+            "n.id, n.name, n.parent_id AS parentId, n.type, n.library_id AS libraryId, " +
+            "n.ext, n.mime_type AS mimeType, n.file_size AS fileSize, " +
+            "n.built_in_type AS builtInType, n.archive_mode AS archiveMode, " +
+            "n.view_meta AS viewMeta " +
+            "FROM nodes n " +
+            "WHERE n.id = #{nodeId} AND n.deleted_at IS NULL")
+    NodeRespDTO selectNodeRespById(Long nodeId);
+
+    @Select({
+            "<script>",
+            "SELECT",
+            "n.id,",
+            "n.name,",
+            "n.parent_id AS parentId,",
+            "n.type,",
+            "n.library_id AS libraryId,",
+            "n.ext,",
+            "n.mime_type AS mimeType,",
+            "n.file_size AS fileSize,",
+            "n.built_in_type AS builtInType,",
+            "n.archive_mode AS archiveMode,",
+            "n.view_meta AS viewMeta",
+            "FROM nodes n",
+            "<if test='tagIds != null and tagIds.size() > 0'>",
+            "JOIN (",
+            "  SELECT rel.node_id",
+            "  FROM node_tag_rel rel",
+            "  WHERE rel.library_id = #{libraryId}",
+            "    AND rel.tag_id IN",
+            "    <foreach collection='tagIds' item='tagId' open='(' separator=',' close=')'>",
+            "      #{tagId}",
+            "    </foreach>",
+            "  GROUP BY rel.node_id",
+            "  <if test='tagMatchMode == \"ALL\"'>",
+            "    HAVING COUNT(DISTINCT rel.tag_id) = #{tagCount}",
+            "  </if>",
+            ") rels ON rels.node_id = n.id",
+            "</if>",
+            "WHERE n.library_id = #{libraryId}",
+            "  AND n.deleted_at IS NULL",
+            "<if test='keyword != null and keyword != \"\"'>",
+            "  AND n.name LIKE CONCAT('%', #{keyword}, '%')",
+            "</if>",
+            "ORDER BY n.updated_at DESC, n.id DESC",
+            "LIMIT #{limit}",
+            "</script>"
+    })
+    List<NodeRespDTO> searchNodes(
+            @Param("libraryId") Long libraryId,
+            @Param("keyword") String keyword,
+            @Param("tagIds") List<Long> tagIds,
+            @Param("tagMatchMode") String tagMatchMode,
+            @Param("tagCount") Integer tagCount,
+            @Param("limit") Integer limit
+    );
 
     // 查询节点的祖先路径
     @Select("SELECT n.id, n.name, nc.depth " +
@@ -89,7 +148,7 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
     void updateSortOrder(Long nodeId, Long libraryId, Integer sortOrder);
 
     @Update("UPDATE nodes " +
-            "SET built_in_type = #{builtInType}, archive_mode = #{archiveMode} " +
+            "SET built_in_type = #{builtInType}, archive_mode = #{archiveMode}, view_meta = #{viewMeta} " +
             "WHERE id = #{id}")
     void updateNode(NodeUpdateReqDTO requestParam);
 

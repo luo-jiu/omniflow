@@ -7,6 +7,7 @@ import com.loyce.omniflow.dao.entity.NodeDO;
 import com.loyce.omniflow.dto.req.NodeCreateReqDTO;
 import com.loyce.omniflow.dto.req.NodeMoveReqDTO;
 import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
+import com.loyce.omniflow.dto.req.NodeSearchReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
 import com.loyce.omniflow.dto.resp.NodeRecycleRespDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
@@ -34,6 +35,15 @@ public class NodeController {
     }
 
     /**
+     * 查询节点详情
+     */
+    @CheckLibraryPermission(libraryId = "@nodePermissionService.getLibraryIdByNodeId(#nodeId)")
+    @GetMapping("/{nodeId}")
+    public Result<NodeRespDTO> getNodeDetail(@PathVariable Long nodeId) {
+        return Results.success(nodeService.getNodeDetail(nodeId));
+    }
+
+    /**
      * 查询该节点的所有子节点(包括子文件夹和子文件)
      */
     @CheckLibraryPermission(libraryId = "#libraryId")
@@ -53,6 +63,15 @@ public class NodeController {
             @PathVariable Long nodeId,
             @RequestParam Long libraryId) {
         return Results.success(nodeService.getDirectChildren(nodeId, libraryId));
+    }
+
+    /**
+     * 节点搜索（名称 + 标签组合）
+     */
+    @CheckLibraryPermission(libraryId = "#requestParam.libraryId")
+    @PostMapping("/search")
+    public Result<List<NodeRespDTO>> searchNodes(@RequestBody NodeSearchReqDTO requestParam) {
+        return Results.success(nodeService.searchNodes(requestParam));
     }
 
     /**

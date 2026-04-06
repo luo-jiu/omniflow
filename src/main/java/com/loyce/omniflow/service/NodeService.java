@@ -5,6 +5,7 @@ import com.loyce.omniflow.dao.entity.NodeDO;
 import com.loyce.omniflow.dto.req.NodeCreateReqDTO;
 import com.loyce.omniflow.dto.req.NodeMoveReqDTO;
 import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
+import com.loyce.omniflow.dto.req.NodeSearchReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
 import com.loyce.omniflow.dto.resp.NodeRecycleRespDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
@@ -41,6 +42,11 @@ public interface NodeService extends IService<NodeDO> {
     List<NodeRespDTO> getDirectChildren(Long nodeId, Long libraryId);
 
     /**
+     * 节点搜索（名称 + 标签组合）
+     */
+    List<NodeRespDTO> searchNodes(NodeSearchReqDTO requestParam);
+
+    /**
      * 查询节点的祖先路径
      *
      * @param nodeId
@@ -48,6 +54,11 @@ public interface NodeService extends IService<NodeDO> {
      * @return
      */
     List<NodePathRespDTO> getAncestors(Long nodeId, Long libraryId);
+
+    /**
+     * 根据节点ID获取节点详情
+     */
+    NodeRespDTO getNodeDetail(Long nodeId);
 
     /**
      * 获取节点的对象存储key

@@ -58,6 +58,11 @@ public class NodeDO extends BaseDO {
     private Integer archiveMode;
 
     /**
+     * 视图扩展元数据（JSON）
+     */
+    private String viewMeta;
+
+    /**
      * 同级节点排序
      */
     private Integer sortOrder;

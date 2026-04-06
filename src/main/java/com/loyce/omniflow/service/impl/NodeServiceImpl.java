@@ -1,5 +1,8 @@
 package com.loyce.omniflow.service.impl;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.loyce.omniflow.common.convention.exception.ClientException;
@@ -10,11 +13,13 @@ import com.loyce.omniflow.dao.mapper.NodeMapper;
 import com.loyce.omniflow.dto.req.NodeCreateReqDTO;
 import com.loyce.omniflow.dto.req.NodeMoveReqDTO;
 import com.loyce.omniflow.dto.req.NodeRenameReqDTO;
+import com.loyce.omniflow.dto.req.NodeSearchReqDTO;
 import com.loyce.omniflow.dto.req.NodeUpdateReqDTO;
 import com.loyce.omniflow.dto.resp.NodeRecycleRespDTO;
 import com.loyce.omniflow.dto.resp.NodePathRespDTO;
 import com.loyce.omniflow.dto.resp.NodeRespDTO;
 import com.loyce.omniflow.event.NodeDeleteEvent;
+import com.loyce.omniflow.service.NodeTagRelService;
 import com.loyce.omniflow.service.NodeService;
 import com.loyce.omniflow.service.helper.NodeNameConflictChecker;
 import com.loyce.omniflow.service.helper.WindowsFileNameValidator;
@@ -26,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -40,6 +46,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     private final NodeClosureMapper nodeClosureMapper;
     private final NodeNameConflictChecker checker;
     private final WindowsFileNameValidator windowsFileNameValidator;
+    private final NodeTagRelService nodeTagRelService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -121,8 +128,52 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         return rawList;
     }
 
+    @Override
+    public List<NodeRespDTO> searchNodes(NodeSearchReqDTO requestParam) {
+        if (requestParam == null) {
+            throw new ClientException("search request cannot be null");
+        }
+        Long libraryId = requestParam.getLibraryId();
+        if (libraryId == null || libraryId <= 0) {
+            throw new ClientException("libraryId is invalid");
+        }
+
+        String keyword = requestParam.getKeyword() == null ? "" : requestParam.getKeyword().trim();
+        if (keyword.isEmpty()) {
+            keyword = null;
+        }
+
+        List<Long> tagIds = normalizePositiveLongList(requestParam.getTagIds());
+        String tagMatchMode = normalizeTagMatchMode(requestParam.getTagMatchMode());
+        int limit = normalizeSearchLimit(requestParam.getLimit());
+        int tagCount = tagIds.size();
+
+        List<NodeRespDTO> rawList = baseMapper.searchNodes(
+                libraryId,
+                keyword,
+                tagIds,
+                tagMatchMode,
+                tagCount,
+                limit
+        );
+        for (NodeRespDTO dto : rawList) {
+            dto.setType(mapType(dto.getType()));
+        }
+        return rawList;
+    }
+
     public List<NodePathRespDTO> getAncestors(Long nodeId, Long libraryId) {
         return baseMapper.findAncestors(nodeId, libraryId);
+    }
+
+    @Override
+    public NodeRespDTO getNodeDetail(Long nodeId) {
+        NodeRespDTO detail = baseMapper.selectNodeRespById(nodeId);
+        if (detail == null) {
+            throw new ClientException("Node not found with ID: " + nodeId);
+        }
+        detail.setType(mapType(detail.getType()));
+        return detail;
     }
 
     public String getStorageKey(Long nodeId) {
@@ -148,6 +199,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateNode(Long nodeId, NodeUpdateReqDTO requestParam) {
         NodeDO node = baseMapper.selectById(nodeId);
         if (node == null) {
@@ -171,10 +223,25 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
             throw new ClientException("archiveMode only supports 0 or 1");
         }
 
+        String viewMeta = requestParam.getViewMeta();
+        if (viewMeta == null) {
+            viewMeta = node.getViewMeta();
+        } else {
+            viewMeta = viewMeta.trim();
+            if (viewMeta.isEmpty()) {
+                viewMeta = null;
+            }
+        }
+
+        List<Long> tagIds = extractTagIdsFromViewMeta(viewMeta);
+
         requestParam.setId(nodeId);
         requestParam.setBuiltInType(builtInType);
         requestParam.setArchiveMode(archiveMode);
+        requestParam.setViewMeta(viewMeta);
         baseMapper.updateNode(requestParam);
+
+        nodeTagRelService.replaceNodeTags(nodeId, node.getLibraryId(), tagIds);
     }
 
     @Override
@@ -416,6 +483,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         }
 
         nodeClosureMapper.deleteClosuresByAncestorAndLibrary(ancestorId, libraryId);
+        nodeTagRelService.deleteByNodeIds(descendantIds);
         baseMapper.hardDeleteByIds(descendantIds, libraryId);
 
         if (!filePaths.isEmpty()) {
@@ -611,6 +679,73 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
             ri++;
         }
         return Integer.compare(leftLength, rightLength);
+    }
+
+    private String normalizeTagMatchMode(String rawMode) {
+        String mode = rawMode == null ? "ANY" : rawMode.trim().toUpperCase();
+        return "ALL".equals(mode) ? "ALL" : "ANY";
+    }
+
+    private int normalizeSearchLimit(Integer rawLimit) {
+        if (rawLimit == null) {
+            return 200;
+        }
+        if (rawLimit <= 0) {
+            return 200;
+        }
+        return Math.min(rawLimit, 500);
+    }
+
+    private List<Long> normalizePositiveLongList(List<Long> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> unique = new LinkedHashSet<>();
+        for (Long value : values) {
+            if (value != null && value > 0) {
+                unique.add(value);
+            }
+        }
+        return new ArrayList<>(unique);
+    }
+
+    private List<Long> extractTagIdsFromViewMeta(String viewMeta) {
+        if (viewMeta == null || viewMeta.isBlank()) {
+            return List.of();
+        }
+        JSONObject meta;
+        try {
+            meta = JSON.parseObject(viewMeta);
+        } catch (Exception ex) {
+            throw new ClientException("viewMeta JSON 格式非法");
+        }
+        if (meta == null) {
+            return List.of();
+        }
+        JSONArray tagIds = meta.getJSONArray("tagIds");
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> unique = new LinkedHashSet<>();
+        for (Object item : tagIds) {
+            Long tagId = parsePositiveLong(item);
+            if (tagId != null) {
+                unique.add(tagId);
+            }
+        }
+        return new ArrayList<>(unique);
+    }
+
+    private Long parsePositiveLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            long parsed = Long.parseLong(String.valueOf(value));
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     // 类型转换

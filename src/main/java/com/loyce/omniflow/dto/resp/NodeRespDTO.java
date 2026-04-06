@@ -45,4 +45,9 @@ public class NodeRespDTO {
      * 是否开启归档模式（0：否，1：是）
      */
     private Integer archiveMode;
+
+    /**
+     * 视图扩展元数据（JSON）
+     */
+    private String viewMeta;
 }
