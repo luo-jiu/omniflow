@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class TomcatMultipartConfig {
 
-    @Value("${omniflow.upload.content-length-limit-bytes:1258291200}")
+    @Value("${omniflow.upload.content-length-limit-bytes:11811160064}")
     private String contentLengthLimitBytes;
 
     @PostConstruct

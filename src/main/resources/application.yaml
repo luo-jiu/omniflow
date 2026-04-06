@@ -1,14 +1,14 @@
 server:
   port: 8848
   tomcat:
-    max-swallow-size: ${OMNIFLOW_MAX_SWALLOW_SIZE:1200MB}
-    max-http-form-post-size: ${OMNIFLOW_MAX_HTTP_FORM_POST_SIZE:1200MB}
+    max-swallow-size: ${OMNIFLOW_MAX_SWALLOW_SIZE:${omniflow.upload.max-request-size}}
+    max-http-form-post-size: ${OMNIFLOW_MAX_HTTP_FORM_POST_SIZE:${omniflow.upload.max-request-size}}
 
 spring:
   servlet:
     multipart:
-      max-file-size: ${OMNIFLOW_MAX_FILE_SIZE:1024MB}
-      max-request-size: ${OMNIFLOW_MAX_REQUEST_SIZE:1200MB}
+      max-file-size: ${omniflow.upload.max-file-size}
+      max-request-size: ${omniflow.upload.max-request-size}
       file-size-threshold: 2KB
       resolve-lazily: false
   datasource:
@@ -24,7 +24,10 @@ spring:
 
 omniflow:
   upload:
-    content-length-limit-bytes: ${OMNIFLOW_CONTENT_LENGTH_LIMIT_BYTES:1258291200}
+    # 本地默认放宽到大文件上传，生产建议通过环境变量按机器资源收敛。
+    max-file-size: ${OMNIFLOW_MAX_FILE_SIZE:10GB}
+    max-request-size: ${OMNIFLOW_MAX_REQUEST_SIZE:11GB}
+    content-length-limit-bytes: ${OMNIFLOW_CONTENT_LENGTH_LIMIT_BYTES:11811160064}
   recycle-bin:
     retention-days: ${OMNIFLOW_RECYCLE_BIN_RETENTION_DAYS:30}
     cleanup-cron: "${OMNIFLOW_RECYCLE_BIN_CLEANUP_CRON:0 30 4 * * ?}"
