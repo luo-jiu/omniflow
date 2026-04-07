@@ -24,13 +24,15 @@ public class UserTransmitFilter implements Filter {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    private static final List<String> IGNORE_URI = Lists.newArrayList(
-            "/api/v1/auth/register",
-            "/api/v1/auth/login",
-            "/api/v1/auth/exists",
-            "/api/v1/files/upload",
-            "/api/v1/files/link",
-            "/api/v1/directory/upload"
+    private static final List<IgnoredRoute> IGNORE_ROUTES = Lists.newArrayList(
+            new IgnoredRoute("/api/v1/auth/register", "POST"),
+            new IgnoredRoute("/api/v1/auth/login", "POST"),
+            new IgnoredRoute("/api/v1/auth/exists", "GET"),
+            new IgnoredRoute("/api/v1/user", "POST"),
+            new IgnoredRoute("/api/v1/user/exists", "GET"),
+            new IgnoredRoute("/api/v1/files/upload", null),
+            new IgnoredRoute("/api/v1/files/link", null),
+            new IgnoredRoute("/api/v1/directory/upload", null)
     );
 
     // TODO 未来加入本地缓存 防止多次请求redis
@@ -38,9 +40,10 @@ public class UserTransmitFilter implements Filter {
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
         String requestURI = request.getRequestURI();
+        String requestMethod = request.getMethod();
 
-        // 1. 是否在忽略列表
-        if (IGNORE_URI.contains(requestURI)) {
+        // 1. 是否在忽略列表（路径 + 方法）
+        if (isIgnoredRoute(requestURI, requestMethod)) {
             filterChain.doFilter(servletRequest, servletResponse);
             return;
         }
@@ -86,6 +89,32 @@ public class UserTransmitFilter implements Filter {
         // 从 Header 提取 Token
         String header = request.getHeader("Authorization");
         return (header != null && header.startsWith("Bearer ")) ? header.substring(7) : null;
+    }
+
+    private boolean isIgnoredRoute(String requestURI, String requestMethod) {
+        for (IgnoredRoute route : IGNORE_ROUTES) {
+            if (route.matches(requestURI, requestMethod)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final class IgnoredRoute {
+        private final String uri;
+        private final String method;
+
+        private IgnoredRoute(String uri, String method) {
+            this.uri = uri;
+            this.method = method;
+        }
+
+        private boolean matches(String requestURI, String requestMethod) {
+            if (!uri.equals(requestURI)) {
+                return false;
+            }
+            return method == null || method.equalsIgnoreCase(requestMethod);
+        }
     }
 
 }
