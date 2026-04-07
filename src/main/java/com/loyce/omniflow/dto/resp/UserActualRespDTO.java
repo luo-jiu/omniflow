@@ -18,6 +18,11 @@ public class UserActualRespDTO {
     private String username;
 
     /**
+     * 昵称
+     */
+    private String nickname;
+
+    /**
      * 手机号
      */
     private String phone;
@@ -26,4 +31,14 @@ public class UserActualRespDTO {
      * 邮箱
      */
     private String email;
+
+    /**
+     * 扩展信息（JSON）
+     */
+    private String ext;
+
+    /**
+     * 头像访问地址（由 ext.avatarKey 换算）
+     */
+    private String avatar;
 }

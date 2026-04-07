@@ -13,6 +13,11 @@ public class UserRegisterReqDTO {
     private String username;
 
     /**
+     * 昵称
+     */
+    private String nickname;
+
+    /**
      * 密码 - 用户登录密码
      */
     private String password;
@@ -26,4 +31,9 @@ public class UserRegisterReqDTO {
      * 邮箱
      */
     private String email;
+
+    /**
+     * 扩展信息（JSON）
+     */
+    private String ext;
 }

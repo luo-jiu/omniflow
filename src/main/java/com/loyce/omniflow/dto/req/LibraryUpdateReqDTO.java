@@ -16,4 +16,9 @@ public class LibraryUpdateReqDTO {
      * 仓库名
      */
     private String name;
+
+    /**
+     * 是否收藏：0=未收藏，1=已收藏
+     */
+    private Integer starred;
 }

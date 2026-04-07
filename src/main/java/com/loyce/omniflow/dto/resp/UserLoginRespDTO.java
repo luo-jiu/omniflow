@@ -16,4 +16,9 @@ public class UserLoginRespDTO {
      * 用户Token
      */
     private String token;
+
+    /**
+     * 用户信息
+     */
+    private UserLoginUserInfoRespDTO userInfo;
 }

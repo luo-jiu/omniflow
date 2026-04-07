@@ -28,4 +28,9 @@ public class LibraryDO extends BaseDO {
      */
     private String name;
 
+    /**
+     * 是否收藏：0=未收藏，1=已收藏
+     */
+    private Integer starred;
+
 }
