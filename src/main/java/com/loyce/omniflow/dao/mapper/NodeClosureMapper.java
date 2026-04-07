@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.loyce.omniflow.dao.entity.NodeClosureDO;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -65,4 +66,16 @@ public interface NodeClosureMapper extends BaseMapper<NodeClosureDO> {
 
     @Select("SELECT descendant FROM node_closure WHERE ancestor = #{ancestorId} AND library_id = #{libraryId}")
     List<Long> selectDescendantIdsByAncestorAndLibrary(Long ancestorId, Long libraryId);
+
+    @Delete("DELETE FROM node_closure WHERE library_id = #{libraryId}")
+    int deleteByLibraryId(@Param("libraryId") Long libraryId);
+
+    @Insert("INSERT INTO node_closure (ancestor, descendant, depth, library_id) " +
+            "VALUES (#{ancestor}, #{descendant}, #{depth}, #{libraryId})")
+    int insertRelation(
+            @Param("ancestor") Long ancestor,
+            @Param("descendant") Long descendant,
+            @Param("depth") Integer depth,
+            @Param("libraryId") Long libraryId
+    );
 }

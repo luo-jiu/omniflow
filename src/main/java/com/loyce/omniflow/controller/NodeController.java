@@ -66,6 +66,15 @@ public class NodeController {
     }
 
     /**
+     * 获取库根节点ID（必要时自动修复树结构与闭包关系）
+     */
+    @CheckLibraryPermission(libraryId = "#libraryId")
+    @GetMapping("/library/{libraryId}/root")
+    public Result<Long> getLibraryRootNodeId(@PathVariable Long libraryId) {
+        return Results.success(nodeService.getLibraryRootNodeId(libraryId));
+    }
+
+    /**
      * 节点搜索（名称 + 标签组合）
      */
     @CheckLibraryPermission(libraryId = "#requestParam.libraryId")

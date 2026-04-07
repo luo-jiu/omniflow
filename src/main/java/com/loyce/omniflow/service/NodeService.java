@@ -78,6 +78,14 @@ public interface NodeService extends IService<NodeDO> {
     String getFullPath(Long nodeId, Long libraryId);
 
     /**
+     * 获取库的根节点ID（必要时自动修复历史脏数据并重建闭包关系）
+     *
+     * @param libraryId 库ID
+     * @return 根节点ID
+     */
+    Long getLibraryRootNodeId(Long libraryId);
+
+    /**
      * 修改节点配置信息
      *
      * @param requestParam

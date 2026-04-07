@@ -30,9 +30,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -42,6 +45,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     private static final int SORT_STEP = 1024;
     private static final int MIN_SORT_GAP = 2;
     private static final int MAX_SAFE_SORT_ORDER = Integer.MAX_VALUE - SORT_STEP * 4;
+    private static final String ROOT_NODE_NAME = "根目录";
 
     private final NodeClosureMapper nodeClosureMapper;
     private final NodeNameConflictChecker checker;
@@ -52,6 +56,27 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     @Override
     @Transactional
     public NodeDO createNode(NodeCreateReqDTO req) {
+        if (req == null) {
+            throw new ClientException("create request cannot be null");
+        }
+        Long libraryId = req.getLibraryId();
+        if (libraryId == null || libraryId <= 0) {
+            throw new ClientException("libraryId is invalid");
+        }
+        Long parentId = normalizeParentId(req.getParentId());
+        if (parentId <= 0) {
+            parentId = getLibraryRootNodeId(libraryId);
+        }
+        NodeDO parentNode = baseMapper.selectByIdAndLibraryId(parentId, libraryId);
+        if (parentNode == null) {
+            parentId = getLibraryRootNodeId(libraryId);
+            parentNode = baseMapper.selectByIdAndLibraryId(parentId, libraryId);
+        }
+        if (parentNode == null || parentNode.getType() == null || parentNode.getType() != 0) {
+            throw new ClientException("Target parent node not found with ID: " + parentId);
+        }
+        req.setParentId(parentId);
+
         // 1. 判断是否有重名文件
         checker.checkDuplicateName(req.getName(), req.getParentId(), req.getLibraryId(), null);
 
@@ -200,11 +225,43 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public Long getLibraryRootNodeId(Long libraryId) {
+        if (libraryId == null || libraryId <= 0) {
+            throw new ClientException("libraryId is invalid");
+        }
+
+        NodeDO rootNode = baseMapper.selectLibraryRootNode(libraryId);
+        boolean structureAdjusted = false;
+        if (rootNode == null) {
+            rootNode = createLibraryRootNode(libraryId);
+            structureAdjusted = true;
+        }
+
+        Long rootNodeId = rootNode.getId();
+        if (rootNodeId == null || rootNodeId <= 0) {
+            throw new ClientException("Failed to resolve library root node");
+        }
+
+        boolean needsParentRepair = structureAdjusted
+                || baseMapper.countNodesNeedingParentRepair(libraryId, rootNodeId) > 0;
+        if (needsParentRepair && repairParentReferences(libraryId, rootNodeId)) {
+            structureAdjusted = true;
+        }
+
+        if (structureAdjusted || !isClosureHealthy(libraryId, rootNodeId)) {
+            rebuildLibraryClosure(libraryId);
+        }
+        return rootNodeId;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateNode(Long nodeId, NodeUpdateReqDTO requestParam) {
         NodeDO node = baseMapper.selectById(nodeId);
         if (node == null) {
             throw new ClientException("Node not found with ID: " + nodeId);
         }
+        boolean viewMetaProvided = requestParam.getViewMeta() != null;
 
         String builtInType = requestParam.getBuiltInType();
         if (builtInType == null || builtInType.trim().isEmpty()) {
@@ -233,7 +290,12 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
             }
         }
 
-        List<Long> tagIds = extractTagIdsFromViewMeta(viewMeta);
+        List<Long> prevTagIds = List.of();
+        List<Long> nextTagIds = List.of();
+        if (viewMetaProvided) {
+            prevTagIds = extractTagIdsFromViewMeta(node.getViewMeta());
+            nextTagIds = extractTagIdsFromViewMeta(viewMeta);
+        }
 
         requestParam.setId(nodeId);
         requestParam.setBuiltInType(builtInType);
@@ -241,7 +303,9 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         requestParam.setViewMeta(viewMeta);
         baseMapper.updateNode(requestParam);
 
-        nodeTagRelService.replaceNodeTags(nodeId, node.getLibraryId(), tagIds);
+        if (viewMetaProvided && !sameTagIdSet(prevTagIds, nextTagIds)) {
+            nodeTagRelService.replaceNodeTags(nodeId, node.getLibraryId(), nextTagIds);
+        }
     }
 
     @Override
@@ -501,6 +565,110 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
         return parentId == null ? 0L : parentId;
     }
 
+    private NodeDO createLibraryRootNode(Long libraryId) {
+        NodeDO root = new NodeDO();
+        root.setName(ROOT_NODE_NAME);
+        root.setParentId(0L);
+        root.setType(0);
+        root.setLibraryId(libraryId);
+        root.setBuiltInType("DEF");
+        root.setArchiveMode(0);
+        root.setSortOrder(0);
+        baseMapper.insert(root);
+        return root;
+    }
+
+    private boolean repairParentReferences(Long libraryId, Long rootNodeId) {
+        List<NodeDO> allNodes = baseMapper.selectAllByLibraryIdIncludeDeleted(libraryId);
+        if (CollectionUtils.isEmpty(allNodes)) {
+            return false;
+        }
+
+        Map<Long, NodeDO> nodesById = new HashMap<>();
+        for (NodeDO node : allNodes) {
+            nodesById.put(node.getId(), node);
+        }
+
+        boolean changed = false;
+        for (NodeDO node : allNodes) {
+            Long nodeId = node.getId();
+            Long currentParentId = normalizeParentId(node.getParentId());
+            Long targetParentId = currentParentId;
+
+            if (Objects.equals(nodeId, rootNodeId)) {
+                targetParentId = 0L;
+            } else if (currentParentId <= 0) {
+                targetParentId = rootNodeId;
+            } else {
+                NodeDO parentNode = nodesById.get(currentParentId);
+                if (parentNode == null) {
+                    targetParentId = rootNodeId;
+                } else if (parentNode.getType() == null || parentNode.getType() != 0) {
+                    targetParentId = rootNodeId;
+                } else if (node.getDeletedAt() == null && parentNode.getDeletedAt() != null) {
+                    targetParentId = rootNodeId;
+                }
+            }
+
+            if (Objects.equals(targetParentId, nodeId)) {
+                targetParentId = rootNodeId;
+            }
+
+            if (!Objects.equals(currentParentId, targetParentId)) {
+                baseMapper.repairParentId(nodeId, targetParentId, libraryId);
+                node.setParentId(targetParentId);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean isClosureHealthy(Long libraryId, Long rootNodeId) {
+        Integer selfClosureCount = nodeClosureMapper.existsDescendant(rootNodeId, rootNodeId, libraryId);
+        if (selfClosureCount == null || selfClosureCount <= 0) {
+            return false;
+        }
+        int parentCount = baseMapper.countActiveChildrenByParent(rootNodeId, libraryId);
+        int closureCount = baseMapper.countActiveDirectChildrenByAncestor(rootNodeId, libraryId);
+        return parentCount == closureCount;
+    }
+
+    private void rebuildLibraryClosure(Long libraryId) {
+        List<NodeDO> allNodes = baseMapper.selectAllByLibraryIdIncludeDeleted(libraryId);
+        nodeClosureMapper.deleteByLibraryId(libraryId);
+        if (CollectionUtils.isEmpty(allNodes)) {
+            return;
+        }
+
+        Map<Long, NodeDO> nodesById = new HashMap<>();
+        for (NodeDO node : allNodes) {
+            nodesById.put(node.getId(), node);
+        }
+
+        for (NodeDO node : allNodes) {
+            nodeClosureMapper.insertRelation(node.getId(), node.getId(), 0, libraryId);
+        }
+
+        for (NodeDO node : allNodes) {
+            Set<Long> visited = new HashSet<>();
+            visited.add(node.getId());
+            Long parentId = normalizeParentId(node.getParentId());
+            int depth = 1;
+            while (parentId > 0) {
+                NodeDO parentNode = nodesById.get(parentId);
+                if (parentNode == null) {
+                    break;
+                }
+                if (!visited.add(parentId)) {
+                    break;
+                }
+                nodeClosureMapper.insertRelation(parentId, node.getId(), depth, libraryId);
+                depth++;
+                parentId = normalizeParentId(parentNode.getParentId());
+            }
+        }
+    }
+
     private void lockMoveScope(Long libraryId, Long oldParentId, Long newParentId) {
         Long first = oldParentId <= newParentId ? oldParentId : newParentId;
         Long second = oldParentId <= newParentId ? newParentId : oldParentId;
@@ -710,15 +878,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
     }
 
     private List<Long> extractTagIdsFromViewMeta(String viewMeta) {
-        if (viewMeta == null || viewMeta.isBlank()) {
-            return List.of();
-        }
-        JSONObject meta;
-        try {
-            meta = JSON.parseObject(viewMeta);
-        } catch (Exception ex) {
-            throw new ClientException("viewMeta JSON 格式非法");
-        }
+        JSONObject meta = parseViewMetaObject(viewMeta);
         if (meta == null) {
             return List.of();
         }
@@ -734,6 +894,29 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, NodeDO> implements 
             }
         }
         return new ArrayList<>(unique);
+    }
+
+    private JSONObject parseViewMetaObject(String viewMeta) {
+        if (viewMeta == null || viewMeta.isBlank()) {
+            return null;
+        }
+        try {
+            return JSON.parseObject(viewMeta);
+        } catch (Exception ex) {
+            throw new ClientException("viewMeta JSON 格式非法");
+        }
+    }
+
+    private boolean sameTagIdSet(List<Long> left, List<Long> right) {
+        if (left == null || left.isEmpty()) {
+            return right == null || right.isEmpty();
+        }
+        if (right == null || right.isEmpty()) {
+            return false;
+        }
+        Set<Long> leftSet = new LinkedHashSet<>(left);
+        Set<Long> rightSet = new LinkedHashSet<>(right);
+        return leftSet.equals(rightSet);
     }
 
     private Long parsePositiveLong(Object value) {

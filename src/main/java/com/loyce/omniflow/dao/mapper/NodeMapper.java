@@ -35,7 +35,7 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
-            "WHERE nc.ancestor = #{nodeId} AND nc.library_id = #{libraryId} AND n.deleted_at IS NULL")
+            "WHERE nc.ancestor = #{nodeId} AND nc.library_id = #{libraryId} AND n.library_id = #{libraryId} AND n.deleted_at IS NULL")
     List<NodeRespDTO> findAllDescendants(Long nodeId, Long libraryId);
 
     // 查询节点的直接子节点（depth=1）
@@ -54,7 +54,7 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
             "n.created_at AS createdAt " +
             "FROM nodes n " +
             "JOIN node_closure nc ON n.id = nc.descendant " +
-            "WHERE nc.ancestor = #{nodeId} AND nc.depth = 1 AND nc.library_id = #{libraryId} AND n.deleted_at IS NULL " +
+            "WHERE nc.ancestor = #{nodeId} AND nc.depth = 1 AND nc.library_id = #{libraryId} AND n.library_id = #{libraryId} AND n.deleted_at IS NULL " +
             "ORDER BY n.sort_order ASC, n.id ASC")
     List<NodeRespDTO> findDirectChildren(Long nodeId, Long libraryId);
 
@@ -138,6 +138,61 @@ public interface NodeMapper extends BaseMapper<NodeDO> {
 
     @Select("SELECT * FROM nodes WHERE id = #{id} AND library_id = #{libraryId}")
     NodeDO selectByIdAndLibraryIdIncludeDeleted(Long id, Long libraryId);
+
+    @Select("SELECT * FROM nodes " +
+            "WHERE library_id = #{libraryId} " +
+            "AND parent_id = 0 " +
+            "AND type = 0 " +
+            "AND deleted_at IS NULL " +
+            "ORDER BY id ASC LIMIT 1")
+    NodeDO selectLibraryRootNode(@Param("libraryId") Long libraryId);
+
+    @Select("SELECT * FROM nodes WHERE library_id = #{libraryId}")
+    List<NodeDO> selectAllByLibraryIdIncludeDeleted(@Param("libraryId") Long libraryId);
+
+    @Update("UPDATE nodes SET parent_id = #{parentId} WHERE id = #{nodeId} AND library_id = #{libraryId}")
+    int repairParentId(
+            @Param("nodeId") Long nodeId,
+            @Param("parentId") Long parentId,
+            @Param("libraryId") Long libraryId
+    );
+
+    @Select("SELECT COUNT(*) FROM nodes WHERE parent_id = #{parentId} AND library_id = #{libraryId} AND deleted_at IS NULL")
+    int countActiveChildrenByParent(
+            @Param("parentId") Long parentId,
+            @Param("libraryId") Long libraryId
+    );
+
+    @Select("SELECT COUNT(*) FROM nodes n " +
+            "JOIN node_closure nc ON n.id = nc.descendant " +
+            "WHERE nc.ancestor = #{ancestorId} " +
+            "AND nc.depth = 1 " +
+            "AND nc.library_id = #{libraryId} " +
+            "AND n.library_id = #{libraryId} " +
+            "AND n.deleted_at IS NULL")
+    int countActiveDirectChildrenByAncestor(
+            @Param("ancestorId") Long ancestorId,
+            @Param("libraryId") Long libraryId
+    );
+
+    @Select("SELECT COUNT(*) FROM nodes n " +
+            "LEFT JOIN nodes p ON p.id = n.parent_id AND p.library_id = n.library_id " +
+            "WHERE n.library_id = #{libraryId} " +
+            "AND (" +
+            "  (n.id = #{rootNodeId} AND n.parent_id <> 0) " +
+            "  OR " +
+            "  (n.id <> #{rootNodeId} AND (" +
+            "    n.parent_id <= 0 " +
+            "    OR n.parent_id = n.id " +
+            "    OR p.id IS NULL " +
+            "    OR p.type <> 0 " +
+            "    OR (n.deleted_at IS NULL AND p.deleted_at IS NOT NULL)" +
+            "  ))" +
+            ")")
+    int countNodesNeedingParentRepair(
+            @Param("libraryId") Long libraryId,
+            @Param("rootNodeId") Long rootNodeId
+    );
 
     @Update("UPDATE nodes SET parent_id = #{newParentId}, sort_order = #{newOrder} " +
             "WHERE id = #{nodeId} AND library_id = #{libraryId}")
